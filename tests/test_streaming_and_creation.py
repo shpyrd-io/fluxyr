@@ -3,10 +3,10 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy import select
 
-from fluxyr_agent.core.adapters.openai_stream_translator import OpenAIStreamTranslator
-from fluxyr_agent.models import Effect, ToolVersion
-from fluxyr_agent.streaming import StreamRecorder
-from fluxyr_agent.tools.registry import Registry, decode_payloads
+from fluxyr.core.adapters.openai_stream_translator import OpenAIStreamTranslator
+from fluxyr.models import Effect, ToolVersion
+from fluxyr.streaming import StreamRecorder
+from fluxyr.tools.registry import Registry, decode_payloads
 
 
 def test_provider_reasoning_text_and_block_boundaries_are_persisted():

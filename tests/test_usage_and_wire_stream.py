@@ -1,11 +1,11 @@
 from decimal import Decimal
 from types import SimpleNamespace as NS
 
-from fluxyr_agent.activity import ActivityEmitter
-from fluxyr_agent.core.adapters.openai_execution import execute_stream
-from fluxyr_agent.models import Routine
-from fluxyr_agent.streaming import StreamRecorder
-from fluxyr_agent.usage import bind_usage, usage_report
+from fluxyr.activity import ActivityEmitter
+from fluxyr.core.adapters.openai_execution import execute_stream
+from fluxyr.models import Routine
+from fluxyr.streaming import StreamRecorder
+from fluxyr.usage import bind_usage, usage_report
 
 
 def test_wire_arguments_are_visible_before_call_id_and_counted_once():
@@ -79,7 +79,7 @@ def test_usage_captures_provider_cost_and_aggregates_descendants_once(make_app):
 
 
 def test_routine_prose_decodes_accents_on_read_write_and_execution(make_app):
-    from fluxyr_agent.text import prose_unicode
+    from fluxyr.text import prose_unicode
 
     _, e, _ = make_app()
     routine = e.routines.put(

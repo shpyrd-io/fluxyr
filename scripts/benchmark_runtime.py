@@ -24,12 +24,12 @@ from sqlalchemy import create_engine, event, insert, text
 from sqlalchemy.engine import make_url
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from fluxyr_agent.app import create_app
-from fluxyr_agent.config import Settings
-from fluxyr_agent.database import MAIN_SESSION
-from fluxyr_agent.models import Event, Job
-from fluxyr_agent.activity import ActivityEmitter
-from fluxyr_agent.usage import usage_report
+from fluxyr.app import create_app
+from fluxyr.config import Settings
+from fluxyr.database import MAIN_SESSION
+from fluxyr.models import Event, Job
+from fluxyr.activity import ActivityEmitter
+from fluxyr.usage import usage_report
 
 
 def rss():

@@ -4,11 +4,11 @@ import { fileURLToPath, URL } from "node:url";
 export default defineConfig({
   plugins: [tailwindcss()],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
-  build: { outDir: "../fluxyr_agent/static", emptyOutDir: true },
+  build: { outDir: "../fluxyr/static", emptyOutDir: true },
   server: {
     proxy: {
-      "/api": "http://127.0.0.1:5050",
-      "/preview": "http://127.0.0.1:5050",
+      "/api": process.env.FLUXYR_DEV_BACKEND || "http://127.0.0.1:5050",
+      "/preview": process.env.FLUXYR_DEV_BACKEND || "http://127.0.0.1:5050",
     },
   },
 });

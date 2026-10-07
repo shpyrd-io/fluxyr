@@ -13,10 +13,10 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine import make_url
 from waitress import serve
-from fluxyr_agent.app import create_app
-from fluxyr_agent.config import Settings
-from fluxyr_agent.models import Event, Job
-from fluxyr_agent.usage import usage_report
+from fluxyr.app import create_app
+from fluxyr.config import Settings
+from fluxyr.models import Event, Job
+from fluxyr.usage import usage_report
 
 
 def main():

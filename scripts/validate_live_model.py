@@ -22,10 +22,10 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine import make_url
 
-from fluxyr_agent.app import create_app
-from fluxyr_agent.config import Settings
-from fluxyr_agent.database import MAIN_SESSION, row_dict
-from fluxyr_agent.models import Event, Job
+from fluxyr.app import create_app
+from fluxyr.config import Settings
+from fluxyr.database import MAIN_SESSION, row_dict
+from fluxyr.models import Event, Job
 
 
 def oracle(rows):
@@ -104,7 +104,7 @@ def main():
             writer.writerows(values)
 
     write_csv(settings.data / "sales.csv", rows)
-    prompt = """Crie uma skill reutilizável chamada CSV Totals com uma ação Python local. Ela recebe input_path e output_path (caminhos relativos a data), lê um CSV UTF-8 com cabeçalho city,amount, agrupa por cidade após strip e casefold, ignora cidade vazia e soma valores monetários decimais com precisão exata. Escreve no output_path um JSON cuja raiz é uma lista ordenada por cidade: cada item tem city e total, sendo total uma string com duas casas decimais. Retorne essa lista como resultado da ação também. Não use serviços externos, credenciais nem aprovação para essa transformação local autorizada. O arquivo sales.csv já existe no data root; leia-o com read_file(path="sales.csv") e não o sobrescreva nem crie outro arquivo de entrada. Implemente, teste com sales.csv e test-result.json, confira o arquivo e ative a ação. Crie uma rotina diária às 08:00 UTC chamada CSV Daily, mas mantenha o schedule DESABILITADO (enabled=false). A rotina deve usar a ação em sales.csv para gerar daily-result.json e verificar seu resultado. Enfileire uma execução manual dessa rotina agora. Não aguarde em polling dentro desta conversa: informe o ID enfileirado. Na resposta final use Markdown com um título, uma lista e uma tabela dos artefatos."""
+    prompt = """Crie uma skill reutilizável chamada CSV Totals com uma ação Python local. Ela recebe input_path e output_path (caminhos relativos a data), lê um CSV UTF-8 com cabeçalho city,amount, agrupa por cidade após strip e casefold, ignora cidade vazia e soma valores monetários decimais com precisão exata. Escreve no output_path um JSON cuja raiz é uma lista ordenada por cidade: cada item tem city e total, sendo total uma string com duas casas decimais. Retorne essa lista como resultado da ação também. Não use serviços externos, credenciais nem aprovação para essa transformação local autorizada. O arquivo sales.csv já existe no data root; leia-o com read(path="sales.csv") e não o sobrescreva nem crie outro arquivo de entrada. Implemente, teste com sales.csv e test-result.json, confira o arquivo e ative a ação. Crie uma rotina diária às 08:00 UTC chamada CSV Daily, mas mantenha o schedule DESABILITADO (enabled=false). A rotina deve usar a ação em sales.csv para gerar daily-result.json e verificar seu resultado. Enfileire uma execução manual dessa rotina agora. Não aguarde em polling dentro desta conversa: informe o ID enfileirado. Na resposta final use Markdown com um título, uma lista e uma tabela dos artefatos."""
     job = e.store.enqueue(prompt)
     report["build_job_id"] = job["id"]
     if args.serve:

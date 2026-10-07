@@ -1,3 +1,6 @@
+import { Checkbox } from "./ui/checkbox/checkbox";
+import { SelectField, SelectOption } from "./form-select";
+import { Label } from "./ui/label/label";
 import { useEffect, useRef, useState } from "react";
 import { Button, Input } from "./components";
 import { api } from "./api";
@@ -105,12 +108,12 @@ export function CronEditor({
     <fieldset className="cron-editor">
       <legend>Schedule</legend>
       <div className="form-columns">
-        <label>
+        <Label>
           Repeat
-          <select
+          <SelectField
             value={schedule.mode}
-            onChange={(e) => {
-              const mode = e.target.value as Schedule["mode"];
+            onValueChange={(value) => {
+              const mode = value as Schedule["mode"];
               update({
                 ...parseCron(cron),
                 mode,
@@ -120,14 +123,14 @@ export function CronEditor({
             }}
           >
             {Object.entries(choices).map(([value, label]) => (
-              <option key={value} value={value}>
+              <SelectOption key={value} value={value}>
                 {label}
-              </option>
+              </SelectOption>
             ))}
-          </select>
-        </label>
+          </SelectField>
+        </Label>
         {schedule.mode !== "manual" && (
-          <label>
+          <Label>
             Timezone
             <Input
               required
@@ -140,7 +143,7 @@ export function CronEditor({
                 <option key={z} value={z} />
               ))}
             </datalist>
-          </label>
+          </Label>
         )}
       </div>
       {schedule.mode === "manual" ? (
@@ -148,59 +151,59 @@ export function CronEditor({
       ) : (
         <>
           {schedule.mode === "minutes" && (
-            <label>
+            <Label>
               Interval
-              <select
+              <SelectField
                 value={schedule.interval}
-                onChange={(e) =>
-                  update({ ...schedule, interval: +e.target.value })
+                onValueChange={(value) =>
+                  update({ ...schedule, interval: +value })
                 }
               >
                 {minuteIntervals.map((n) => (
-                  <option key={n} value={n}>
+                  <SelectOption key={n} value={n}>
                     {n} {n === 1 ? "minute" : "minutes"}
-                  </option>
+                  </SelectOption>
                 ))}
-              </select>
-            </label>
+              </SelectField>
+            </Label>
           )}
           {schedule.mode === "hourly" && (
             <div className="form-columns">
-              <label>
+              <Label>
                 Every
-                <select
+                <SelectField
                   value={schedule.interval}
-                  onChange={(e) =>
-                    update({ ...schedule, interval: +e.target.value })
+                  onValueChange={(value) =>
+                    update({ ...schedule, interval: +value })
                   }
                 >
                   {hourIntervals.map((n) => (
-                    <option key={n} value={n}>
+                    <SelectOption key={n} value={n}>
                       {n} {n === 1 ? "hour" : "hours"}
-                    </option>
+                    </SelectOption>
                   ))}
-                </select>
-              </label>
-              <label>
+                </SelectField>
+              </Label>
+              <Label>
                 At minute
-                <select
+                <SelectField
                   value={schedule.minute}
-                  onChange={(e) =>
-                    update({ ...schedule, minute: +e.target.value })
+                  onValueChange={(value) =>
+                    update({ ...schedule, minute: +value })
                   }
                 >
                   {Array.from({ length: 60 }, (_, n) => (
-                    <option key={n} value={n}>
+                    <SelectOption key={n} value={n}>
                       {String(n).padStart(2, "0")}
-                    </option>
+                    </SelectOption>
                   ))}
-                </select>
-              </label>
+                </SelectField>
+              </Label>
             </div>
           )}
           {timeMode && (
             <div className="form-columns">
-              <label>
+              <Label>
                 Time
                 <Input
                   type="time"
@@ -210,23 +213,23 @@ export function CronEditor({
                     update({ ...schedule, time: e.target.value })
                   }
                 />
-              </label>
+              </Label>
               {schedule.mode === "monthly" && (
-                <label>
+                <Label>
                   Day of month
-                  <select
+                  <SelectField
                     value={schedule.day}
-                    onChange={(e) =>
-                      update({ ...schedule, day: +e.target.value })
+                    onValueChange={(value) =>
+                      update({ ...schedule, day: +value })
                     }
                   >
                     {Array.from({ length: 31 }, (_, i) => (
-                      <option value={i + 1} key={i}>
+                      <SelectOption value={i + 1} key={i}>
                         {i + 1}
-                      </option>
+                      </SelectOption>
                     ))}
-                  </select>
-                </label>
+                  </SelectField>
+                </Label>
               )}
             </div>
           )}
@@ -235,10 +238,12 @@ export function CronEditor({
               <span className="cron-field-label">On these days</span>
               <div className="cron-weekdays">
                 {[1, 2, 3, 4, 5, 6, 0].map((day) => (
-                  <Button
+                  <Checkbox
                     key={day}
-                    aria-pressed={schedule.days.includes(day)}
-                    onClick={() =>
+                    type="button"
+                    label={weekdays[day]}
+                    checked={schedule.days.includes(day)}
+                    onCheckedChange={() =>
                       update({
                         ...schedule,
                         days: schedule.days.includes(day)
@@ -246,9 +251,7 @@ export function CronEditor({
                           : [...schedule.days, day],
                       })
                     }
-                  >
-                    {weekdays[day]}
-                  </Button>
+                  />
                 ))}
               </div>
               {!schedule.days.length && (
@@ -262,7 +265,7 @@ export function CronEditor({
             </p>
           )}
           {schedule.mode === "custom" ? (
-            <label>
+            <Label>
               Cron expression
               <Input
                 ref={rawInput}
@@ -281,7 +284,7 @@ export function CronEditor({
                     Use visual editor
                   </Button>
                 )}
-            </label>
+            </Label>
           ) : (
             <div className="cron-expression">
               <code>{expression || "Choose a time and days"}</code>

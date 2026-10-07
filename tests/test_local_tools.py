@@ -4,9 +4,9 @@ from datetime import UTC
 import pytest
 from conftest import execute_next
 
-from fluxyr_agent.core.brain_tool_batch import execute_tool_batch_concurrent
-from fluxyr_agent.models import ToolVersion, VaultItem
-from fluxyr_agent.routines import next_occurrence
+from fluxyr.core.brain_tool_batch import execute_tool_batch_concurrent
+from fluxyr.models import ToolVersion, VaultItem
+from fluxyr.routines import next_occurrence
 
 
 def build(
@@ -87,7 +87,7 @@ def test_python_human_resume_and_secret_redaction(make_app):
 def test_vault_key_survives_new_engine_and_not_exposed(make_app):
     app, e, _ = make_app()
     e.vault.put("token", "access_token", {"access_token": "abcd1234"})
-    from fluxyr_agent.vault import Vault
+    from fluxyr.vault import Vault
 
     assert Vault(e.db).resolve("token")["access_token"] == "abcd1234"
     assert "abcd1234" not in json.dumps(app.test_client().get("/api/vault").json)

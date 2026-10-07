@@ -10,6 +10,22 @@ const event = (id: number, type: string, payload: Record<string, unknown>) => ({
   created_at: id,
 });
 
+test("runner diagnostics do not interrupt the conversation or split a tool card", () => {
+  const events = [
+    event(1, "tool_begin", { tool_call_id: "call", tool_name: "test_action" }),
+    event(2, "progress", {
+      call_id: "call",
+      text: "Installing Python dependencies…",
+    }),
+    event(3, "progress", { call_id: "call", text: "internal stdout" }),
+    event(4, "tool_end", { tool_call_id: "call", result: { success: true } }),
+  ];
+  const timeline = buildTimeline([], events);
+  assert.equal(timeline.length, 1);
+  assert.equal(timeline[0].event?.type, "tool_end");
+  assert.equal(events.filter((e) => e.type === "progress").length, 2);
+});
+
 test("a skill build updates its original card on completion, including replay and out-of-order delivery", () => {
   const start = event(1, "build_started", {
     job_id: "child",
@@ -97,10 +113,10 @@ test("live text is visible without a job poll; reasoning, tools and answers keep
     event(2, "reasoning", { block_id: "r", text: "Inspect input" }),
     event(3, "stream_close", { block_id: "r" }),
     event(4, "delta", { block_id: "first", text: "I will inspect it." }),
-    event(5, "tool_begin", { tool_call_id: "t", tool_name: "read_file" }),
+    event(5, "tool_begin", { tool_call_id: "t", tool_name: "read" }),
     event(6, "tool_end", {
       tool_call_id: "t",
-      tool_name: "read_file",
+      tool_name: "read",
       result: { text: "input" },
     }),
     event(7, "delta", { block_id: "final", text: "**Complete**" }),
@@ -146,7 +162,7 @@ test("legacy streams split at tools and do not merge separate replies", () => {
     [
       event(1, "delta", { text: "First" }),
       event(2, "delta", { text: " reply" }),
-      event(3, "tool_end", { tool_call_id: "t", tool_name: "read_file" }),
+      event(3, "tool_end", { tool_call_id: "t", tool_name: "read" }),
       event(4, "delta", { text: "Final" }),
       event(5, "waiting", {}),
     ],

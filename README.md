@@ -1,9 +1,36 @@
-# Fluxyr Agent
+# Fluxyr
 
-A self-hosted, single-agent workbench extracted from the updated Fluxyr harness.
+A Flask-compatible Python framework and self-hosted agent workbench.
 One Python application serves the web UI and runs an embedded worker. PostgreSQL is the only required service.
 
 Build Python skills in a persistent chat, test and activate immutable action versions, run routines in separate conversations, and schedule them with cron. The installation has no accounts, authentication, billing, remote files or integration marketplace.
+
+## Build your own application
+
+```python
+from fluxyr import Fluxyr
+
+app = Fluxyr(__name__)
+
+@app.tool(parallel_safe=True, side_effecting=False)
+def greet(name: str) -> dict:
+    """Greet someone by their name."""
+    return {"message": f"Hello, {name}!"}
+
+@app.get("/api/example/hello")
+def hello():
+    return greet("Fluxyr")
+
+if __name__ == "__main__":
+    app.run()
+```
+
+Install the [release wheel](https://github.com/shpyrd-io/fluxyr/releases) in your project's virtualenv, set `DATABASE_URL` and the
+selected provider's API key, and run `python app.py`. Optional Markdown skills
+load through `FLUXYR_SKILLS_DIR`. See [the framework guide](docs/FRAMEWORK.md),
+[the minimal application](examples/minimal/app.py) and [development/package
+instructions](CONTRIBUTING.md). This repository can also be installed with
+`pip install -e '.[dev]'` for local contributions. See [releases and PyPI setup](docs/RELEASING.md) for versioning, publication and `requirements.txt` examples.
 
 ## Start with Docker
 
@@ -12,7 +39,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Open http://localhost:5050 and configure a provider and API key in **Settings**. Supported providers are Anthropic, OpenAI and OpenRouter. Model IDs are explicit, so there is no hardcoded catalogue to update. Settings stores API keys in the encrypted local vault; environment variables are also supported.
+Set the provider, model and provider API key in `.env` before starting, then open http://localhost:5050. Supported providers are Anthropic, OpenAI and OpenRouter. Settings displays the effective environment configuration read-only. PostgreSQL stores agent state; deployment settings come from the environment.
 
 The Docker configuration keeps PostgreSQL internal and binds the web UI to loopback. Set `FLUXYR_BIND` to the desired interface when deploying on a private server. There is intentionally no login: anyone with network access to the web service can run trusted Python code on the installation. A reverse proxy/private network is an installation concern.
 
@@ -29,10 +56,10 @@ cp .env.example .env
 # Set DATABASE_URL to your PostgreSQL database in .env.
 pnpm --dir frontend install --frozen-lockfile
 pnpm --dir frontend build
-python -m fluxyr_agent
+python -m fluxyr
 ```
 
-The schema and local directories are created on startup. `python -m fluxyr_agent --init` initializes them without serving HTTP. Run exactly one app process; the supervisor holds a PostgreSQL advisory lock to prevent another worker owning the same schema. Do not use a multiprocess Gunicorn deployment.
+The schema and local directories are created on startup. `python -m fluxyr --init` initializes them without serving HTTP. Run exactly one app process; the supervisor holds a PostgreSQL advisory lock to prevent another worker owning the same schema. Do not use a multiprocess Gunicorn deployment.
 
 For frontend development, run `pnpm --dir frontend dev` alongside the Python app on port 5050.
 
@@ -42,7 +69,7 @@ A typical request:
 
 > Create a weather skill for my provider's API, with a forecast action accepting a city. Ask me for the documentation URL and the credentials you need. Test it for New York. Then create a routine that runs every day at 08:00 UTC, retrieves the forecast, prints it in the execution log and returns the city and forecast as JSON.
 
-The agent can research documentation with `web_browse`, `web_extract` and `tech_doc`; build skills and Python actions; inspect local files; ask for human input; render local previews; and create, update or run routines. It can use every active action. There is no allowlist by account or external catalogue.
+The agent can research documentation with `web_browse`, `web_extract` and `tech_doc`; build skills and Python actions; read, write and edit local files and execute Bash; ask for human input; render local previews; and create, update or run routines. It can use every active action. There is no allowlist by account or external catalogue.
 
 A skill contains usage instructions, a technical specification and one or more actions. The workbench saves them with `create_skill` and delegates to `build_skill`: a separate builder context researches, submits a plan and calls `create_action` to produce immutable candidates. The workbench resumes with the artifacts and inspects them. It does not write Python itself. `test_action` runs real Python with supplied inputs; a passing test is required before `activate_action`. The UI exposes the same lifecycle. Tests can have real effects. Updating an action creates a new version; executions already running retain their original versions. An execution that explicitly activates its own new action can use it immediately.
 
@@ -69,9 +96,9 @@ output({'city': params['city'], 'forecast': 'API result goes here'})
 
 The example describes the contract; it does not invent a weather endpoint. See [the action contract](docs/ACTIONS.md) for a complete local action and OAuth/certificate content formats.
 
-Each invocation has a separate working directory under `workspace/`; `data_dir` points to the shared `data/` directory. Dependencies install in managed virtualenvs. The child receives only its declared secrets and a minimal environment, without database or provider credentials. Logs and JSON output are bounded, and injected secret values are redacted from returned text.
+Each invocation has a separate working directory under `workspace/`; `data_dir` points to the shared `data/` directory. Dependencies install in managed virtualenvs. The child inherits the server's environment, including database and provider configuration; declared Vault secrets also arrive through the action payload. Home, cache and temporary paths point into the invocation directory. Logs and JSON output are bounded, and declared Vault secret values are redacted from returned text (arbitrary environment values are not automatically redacted).
 
-Python is trusted local code. Virtualenvs are package isolation, **not an operating-system sandbox**. Code runs with the app's OS permissions; use a dedicated user or isolated VM/container if required. There is no built-in per-execution VM in this release.
+Python is trusted installation code. `FLUXYR_EXECUTION_MODE=local` (default) uses the app's OS permissions. On Linux, `FLUXYR_EXECUTION_MODE=landlock` restricts action and file/shell tool writes to `data/` and its own invocation directory, including subprocesses. Unsupported kernels/container policies fail startup instead of falling back. This is protection against accidental filesystem changes, not a hostile-code sandbox or per-execution VM. See [execution protection](docs/EXECUTION_PROTECTION.md) for the policy, deployment and tests.
 
 ## Execution and human interaction
 
@@ -93,6 +120,12 @@ Cron expressions use five fields, with an IANA timezone (`UTC` by default). The 
 
 The vault supports text, key/password pairs, OAuth2, access tokens, PEM certificates and PFX certificates. Contents use envelope encryption (AES-256-GCM plus a wrapped key). OAuth authorization uses state and PKCE; token refresh is serialized by a database row lock. Client credentials and refresh tokens are supported, with an optional client certificate for token requests.
 
+Workbench and builders can call `manage_vault_credential` to open the shared Vault form inside the conversation. Saving encrypts the private fields and resumes the waiting job atomically; the model receives only the item name/ID. Builder requests are also visible in the parent workbench. Cancel resumes with rejection. Edit forms never load saved secrets; omitted fields keep their values.
+
+The OAuth form selects **Authorization code** or **Client credentials**, token authentication (request body or HTTP Basic), and a PEM/PFX certificate from Vault. Client credentials requires client ID + secret and a token URL, without browser authorization. Certificate links use stable IDs. OAuth configuration changes invalidate cached tokens. mTLS is applied to token acquisition/renewal; actions calling resource APIs that also require mTLS must use the certificate there too. The shared [Vault guide](fluxyr/prompts/vault.md) documents all runtime field shapes and exact-name declarations.
+
+Action creation rejects literal `secret(name)` references missing from its `secrets` array and declarations of unknown Vault names. Candidate tests use real configured credentials/network. Explicit `output({"success": false, ...})` is a failure even with exit code zero, and cannot pass a test or enable activation; new code should raise exceptions and output only domain results.
+
 Without `VAULT_ENCRYPTION_KEY`, a persistent key is created at `.runtime/vault.key` with mode 0600. Back up that key **and** PostgreSQL. Losing the key loses access to the vault. Never change the configured key without re-encrypting existing items.
 
 ```text
@@ -102,7 +135,7 @@ workspace/          per-invocation source and working files
 .runtime/envs/      managed Python virtualenvs
 ```
 
-File API paths are restricted to `data/`, including symlink containment. Text edits support an `etag` to detect concurrent edits. Preview files are served directly; HTML runs in an iframe with a sandbox and restrictive CSP. No S3 grants, upload service, Redis or remote execution service is needed.
+The agent uses Pi-style `read`, `write`, `edit` and `bash` tools, with `data/` as cwd and absolute paths supported. See [file tools](docs/FILE_TOOLS.md) for contracts, streaming, image input and process controls. The browser’s file API paths are restricted to `data/`, including symlink containment. Text edits support an `etag` to detect concurrent edits. Preview files are served directly; HTML runs in an iframe with a sandbox and restrictive CSP. No S3 grants, upload service, Redis or remote execution service is needed.
 
 ## Tests
 
@@ -115,3 +148,7 @@ pnpm --dir frontend build
 Use a disposable PostgreSQL database. Each test creates and removes its own schema. Without `TEST_DATABASE_URL`, SQLite is used for lightweight tests and PostgreSQL-only concurrency tests are skipped. Provider tests use scripted responses or mock transport; no paid provider request is made.
 
 The updated extraction baseline and acceptance scope are recorded in [IMPLEMENTATION.md](docs/IMPLEMENTATION.md). [VALIDATION.md](docs/VALIDATION.md) distinguishes tested behavior from deployment and live-provider checks.
+
+## License
+
+Mozilla Public License 2.0 ([LICENSE](LICENSE)). Third-party components retain their notices ([NOTICE](NOTICE)).

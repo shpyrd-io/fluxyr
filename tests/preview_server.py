@@ -6,8 +6,8 @@ from pathlib import Path
 from conftest import ScriptedAdapter
 from sqlalchemy import create_engine, text
 
-from fluxyr_agent.app import create_app
-from fluxyr_agent.config import Settings
+from fluxyr.app import create_app
+from fluxyr.config import Settings
 
 url = os.environ["TEST_DATABASE_URL"]
 with create_engine(url).begin() as conn:

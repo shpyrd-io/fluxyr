@@ -6,8 +6,8 @@ import pytest
 from conftest import execute_next
 from sqlalchemy import select
 
-from fluxyr_agent.core.adapters.openai_request_options import build_create_kwargs
-from fluxyr_agent.core.memory.short_term import ShortTermMemory
+from fluxyr.core.adapters.openai_request_options import build_create_kwargs
+from fluxyr.core.memory.short_term import ShortTermMemory
 
 
 def test_openai_and_openrouter_wire_options():
@@ -67,18 +67,18 @@ def test_waiting_survives_engine_restart(make_app):
 def test_pause_after_completed_effect_does_not_rerun(make_app):
     app, e, adapter = make_app()
     job = e.store.enqueue("Write then pause")
-    original = e.files.write
+    original = e.workspace_tools.file
     calls = []
 
-    def write(**args):
+    def write(*args, **kwargs):
         calls.append(1)
-        result = original(**args)
+        result = original(*args, **kwargs)
         e.store.control(job["id"], "pause")
         return result
 
-    e.files.write = write
+    e.workspace_tools.file = write
     adapter.replies = [
-        [("write_file", {"path": "test.txt", "content": "exactly one write"})],
+        [("write", {"path": "test.txt", "content": "exactly one write"})],
         "Finished",
     ]
     paused = execute_next(e)
@@ -123,7 +123,7 @@ def test_two_gated_actions_approve_and_reject(make_app):
     )
     finished = execute_next(e)
     assert finished["status"] == "succeeded", finished["error"]
-    from fluxyr_agent.models import Effect
+    from fluxyr.models import Effect
 
     with e.db.transaction() as s:
         assert len(list(s.scalars(select(Effect)))) == 1
@@ -187,7 +187,7 @@ def test_oauth_refresh_serializes_and_preserves_rotating_token(make_app, monkeyp
 
         return Response()
 
-    monkeypatch.setattr("fluxyr_agent.vault.requests.post", post)
+    monkeypatch.setattr("fluxyr.vault.requests.post", post)
     with ThreadPoolExecutor(max_workers=2) as pool:
         values = list(pool.map(lambda _: e.vault.resolve("oauth"), range(2)))
     assert len(calls) == 1
@@ -227,8 +227,8 @@ def test_oauth_pkce_callback_consumes_state(make_app, monkeypatch):
 
 
 def test_browser_and_techdoc_without_gateway(make_app, monkeypatch):
-    from fluxyr_agent.tools.techdoc.llm import adapter_factory, get_llm
-    from fluxyr_agent.tools.web import WebBrowserToolProvider
+    from fluxyr.tools.techdoc.llm import adapter_factory, get_llm
+    from fluxyr.tools.web import WebBrowserToolProvider
 
     _, e, adapter = make_app()
     provider = WebBrowserToolProvider()
@@ -248,8 +248,8 @@ def test_real_sdk_adapters_with_mock_http():
     import httpx
     import openai
 
-    from fluxyr_agent.core.adapters.anthropic import AnthropicAdapter
-    from fluxyr_agent.core.adapters.openai import OpenAIAdapter
+    from fluxyr.core.adapters.anthropic import AnthropicAdapter
+    from fluxyr.core.adapters.openai import OpenAIAdapter
 
     captured = []
 
@@ -319,8 +319,8 @@ def test_real_sdk_adapters_with_mock_http():
 def test_techdoc_llms_strategy_extracts_real_markdown(monkeypatch):
     import httpx
 
-    from fluxyr_agent.tools.techdoc.models import Fingerprint
-    from fluxyr_agent.tools.techdoc.strategies import llms_txt
+    from fluxyr.tools.techdoc.models import Fingerprint
+    from fluxyr.tools.techdoc.strategies import llms_txt
 
     body = "# Authentication\nUse Bearer tokens in the Authorization header for every incoming API request.\n# Forecast\nGET /forecast?city=NY returns the weather forecast for the requested city name.\n# Errors\n429 means the request was rate limited and should be retried later."
     monkeypatch.setattr(

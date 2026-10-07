@@ -17,23 +17,23 @@ test("explicit parallel batches retain branches even when individual calls finis
     }),
     e(2, "tool_begin", {
       tool_call_id: "a",
-      tool_name: "read_file",
+      tool_name: "read",
       batch_id: "b",
     }),
     e(3, "tool_end", {
       tool_call_id: "a",
-      tool_name: "read_file",
+      tool_name: "read",
       batch_id: "b",
       mode: "continue",
     }),
     e(4, "tool_begin", {
       tool_call_id: "b",
-      tool_name: "search_files",
+      tool_name: "bash",
       batch_id: "b",
     }),
     e(5, "tool_end", {
       tool_call_id: "b",
-      tool_name: "search_files",
+      tool_name: "bash",
       batch_id: "b",
       mode: "continue",
     }),
@@ -79,7 +79,7 @@ test("human responses are represented and unresolved branches do not show a join
       }),
       e(2, "tool_begin", {
         tool_call_id: "a",
-        tool_name: "read_file",
+        tool_name: "read",
         batch_id: "b",
       }),
       e(3, "decision", { result: { answer: "Celsius" }, decision: "complete" }),
@@ -116,4 +116,55 @@ test("human decisions settle parked tool nodes and child build status uses the d
   assert.equal(flow[0].status, "completed");
   assert.equal(flow[1].kind, "human_response");
   assert.equal(flow[2].status, "running");
+});
+
+test("a replied round does not complete an action awaiting its next human input", () => {
+  const events = [
+    e(1, "tool_begin", { tool_call_id: "a", tool_name: "action_review" }),
+    e(2, "tool_end", {
+      tool_call_id: "a",
+      tool_name: "action_review",
+      mode: "wait",
+      result: { __human__: {} },
+    }),
+    e(3, "decision", {
+      call_id: "a",
+      request_id: "round-1",
+      decision: "complete",
+      result: { answer: "Blue" },
+    }),
+    e(4, "tool_end", {
+      tool_call_id: "a",
+      tool_name: "action_review",
+      mode: "wait",
+      result: { __human__: {} },
+    }),
+  ];
+  const waiting = executionFlow([], events, [{ id: "job", status: "waiting" }]);
+  assert.equal(waiting.find((n) => n.kind === "tool")?.status, "waiting");
+  const finished = executionFlow(
+    [],
+    [
+      ...events,
+      e(5, "tool_end", {
+        tool_call_id: "a",
+        tool_name: "action_review",
+        mode: "continue",
+        result: { success: true },
+      }),
+    ],
+    [{ id: "job", status: "succeeded" }],
+  );
+  assert.equal(finished.filter((n) => n.kind === "tool").length, 1);
+  assert.equal(finished.find((n) => n.kind === "tool")?.status, "completed");
+});
+
+test("failed branch marks the parallel container failed and retains executed version", () => {
+  const flow = executionFlow([], [
+    e(1, "tool_batch_start", {batch_id: "b", parallel: true, calls: [{tool_call_id: "a"}, {tool_call_id: "b"}]}),
+    e(2, "tool_end", {batch_id: "b", tool_call_id: "a", tool_name: "action_roll", mode: "continue", result: {success: true, version_id: "v1"}}),
+    e(3, "tool_end", {batch_id: "b", tool_call_id: "b", tool_name: "action_roll", mode: "continue", result: {success: false, error: "Failed", version_id: "v1"}}),
+  ]);
+  assert.equal(flow[0].status, "failed");
+  assert.deepEqual(flow[0].children?.map(n => n.versionId), ["v1", "v1"]);
 });

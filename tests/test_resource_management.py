@@ -1,6 +1,6 @@
 from conftest import execute_next
 
-from fluxyr_agent.models import Job
+from fluxyr.models import Job
 
 
 def test_vault_edits_keep_omitted_secrets_and_identity(make_app):
@@ -55,7 +55,8 @@ def test_routine_delete_stops_schedule_and_preserves_execution(make_app):
 
 
 def test_tool_batch_metadata_records_actual_dispatch_mode(make_app):
-    _, e, _ = make_app([[("list_files", {"path": "."}), ("vault_list", {})], "Done"])
+    _, e, _ = make_app([[("read", {"path": "seed.txt"}), ("vault_list", {})], "Done"])
+    (e.settings.data / "seed.txt").write_text("seed")
     e.store.enqueue("Inspect")
     job = execute_next(e)
     events = e.store.events(job["session_id"])

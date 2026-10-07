@@ -5,8 +5,8 @@ from concurrent.futures import ThreadPoolExecutor
 from conftest import execute_next
 from sqlalchemy import select
 
-from fluxyr_agent.database import MAIN_SESSION
-from fluxyr_agent.models import Job, Session
+from fluxyr.database import MAIN_SESSION
+from fluxyr.models import Job, Session
 
 
 def test_chat_events_and_memory(make_app):
@@ -195,7 +195,7 @@ def test_scheduler_idempotent_and_overlap(make_app):
             "overlap": "skip",
         }
     )
-    from fluxyr_agent.models import Routine
+    from fluxyr.models import Routine
 
     with e.db.transaction() as s:
         s.get(Routine, r["id"]).next_run = time.time() - 1

@@ -1,3 +1,9 @@
+import { Typography } from "./ui/typography/typography";
+import { Status } from "./status";
+import { Switch } from "./ui/switch/switch";
+import { Separator } from "./ui/separator/separator";
+import { SelectField, SelectOption } from "./form-select";
+import { Label } from "./ui/label/label";
 import React, { useState, useEffect, useCallback } from "react";
 import { api, RecordData, date } from "./api";
 import { Button, Input, Textarea, Panel, Badge } from "./components";
@@ -18,7 +24,7 @@ const descriptions: Record<string, string> = {
   Routines: "Repeatable tasks, run on demand or on your schedule.",
   Vault: "Encrypted secrets, OAuth connections and client certificates.",
   Files: "Your agent’s local data directory. No remote storage.",
-  Settings: "Connect your model provider. Keys stay in the local vault.",
+  Settings: "Inspect the configuration loaded from your application environment.",
 };
 export function Resources({ page, onError, open }: Props) {
   return (
@@ -26,7 +32,7 @@ export function Resources({ page, onError, open }: Props) {
       <div className="page-title">
         <div>
           <p className="eyebrow">INSTANCE RESOURCES</p>
-          <h1>{page}</h1>
+          <Typography variant="H1">{page}</Typography>
           <p>{descriptions[page]}</p>
         </div>
       </div>
@@ -59,7 +65,7 @@ function JsonEditor({
   rows?: number;
 }) {
   return (
-    <label>
+    <Label>
       {label}
       <Textarea
         className="code"
@@ -68,7 +74,7 @@ function JsonEditor({
         onChange={(e) => onChange(e.target.value)}
         spellCheck={false}
       />
-    </label>
+    </Label>
   );
 }
 export function Actions({
@@ -151,8 +157,7 @@ export function Actions({
           {t.versions.map((v: RecordData) => (
             <div className="version" key={v.id}>
               <div>
-                <code>{v.id.slice(0, 8)}</code>{" "}
-                <span className="status">{v.state}</span>
+                <code>{v.id.slice(0, 8)}</code> <Status status={v.state} />
                 {t.active_version === v.id && (
                   <span className="status succeeded">In use</span>
                 )}
@@ -198,17 +203,17 @@ export function Actions({
       {edit && (
         <form className="editor" onSubmit={save}>
           <div className="two-columns">
-            <label>
+            <Label>
               Name
               <Input value={name} onChange={(e) => setName(e.target.value)} />
-            </label>
-            <label>
+            </Label>
+            <Label>
               Description
               <Input
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
-            </label>
+            </Label>
           </div>
           <JsonEditor
             label="Python source"
@@ -222,29 +227,29 @@ export function Actions({
             onChange={setParameters}
           />
           <div className="two-columns">
-            <label>
+            <Label>
               Dependencies (one requirement per line)
               <Textarea
                 value={dependencies}
                 onChange={(e) => setDependencies(e.target.value)}
               />
-            </label>
-            <label>
+            </Label>
+            <Label>
               Vault names (one per line)
               <Textarea
                 value={secrets}
                 onChange={(e) => setSecrets(e.target.value)}
               />
-            </label>
+            </Label>
           </div>
-          <label className="checkbox">
-            <input
-              type="checkbox"
+          <Label className="checkbox">
+            <Switch
+              type="button"
               checked={approval}
-              onChange={(e) => setApproval(e.target.checked)}
+              onCheckedChange={setApproval}
             />
             Require human approval before execution
-          </label>
+          </Label>
           <div className="actions">
             <Button type="submit" className="primary">
               Save candidate
@@ -259,146 +264,24 @@ export function Actions({
   );
 }
 function Settings({ onError }: { onError: (s: string) => void }) {
-  const [config, setConfig] = useState<RecordData | null>(null),
-    [key, setKey] = useState(""),
-    [saved, setSaved] = useState(false);
-  useEffect(() => {
-    api("/settings")
-      .then(setConfig)
-      .catch((e) => onError(e.message));
-  }, [onError]);
+  const [config, setConfig] = useState<RecordData | null>(null);
+  useEffect(() => { api("/settings").then(setConfig).catch(e => onError(e.message)); }, [onError]);
   if (!config) return <p>Loading settings…</p>;
-  const update = (key: string, value: unknown) => {
-    setConfig({ ...config, [key]: value });
-    setSaved(false);
-  };
-  return (
-    <form
-      className="panel settings"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        try {
-          await api("/settings", "POST", { ...config, api_key: key });
-          setKey("");
-          setSaved(true);
-          setConfig(await api("/settings"));
-        } catch (e: any) {
-          onError(e.message);
-        }
-      }}
-    >
-      <h2>Model connection</h2>
-      <p>Choose the model that powers your agent.</p>
-      <label>
-        Provider
-        <select
-          value={config.provider}
-          onChange={(e) => update("provider", e.target.value)}
-        >
-          {["anthropic", "openai", "openrouter"].map((p) => (
-            <option key={p}>{p}</option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Model identifier
-        <Input
-          value={config.model}
-          onChange={(e) => update("model", e.target.value)}
-          required
-        />
-      </label>
-      <label>
-        API key{" "}
-        <small>
-          {config.configured_keys?.[config.provider]
-            ? "A key is configured. Leave empty to keep it."
-            : "Required before your first chat."}
-        </small>
-        <Input
-          type="password"
-          autoComplete="new-password"
-          value={key}
-          onChange={(e) => setKey(e.target.value)}
-          placeholder="Enter a new key…"
-        />
-      </label>
-      {config.provider !== "anthropic" && (
-        <label>
-          Custom base URL (optional)
-          <Input
-            value={config.base_url}
-            onChange={(e) => update("base_url", e.target.value)}
-            placeholder={
-              config.provider === "openrouter"
-                ? "https://openrouter.ai/api/v1"
-                : "https://api.openai.com/v1"
-            }
-          />
-        </label>
-      )}
-      <div className="two-columns">
-        <label>
-          Maximum output tokens
-          <Input
-            type="number"
-            min="256"
-            max="128000"
-            value={config.max_tokens}
-            onChange={(e) => update("max_tokens", Number(e.target.value))}
-          />
-        </label>
-        {config.provider === "anthropic" ? (
-          <label>
-            Thinking mode
-            <select
-              value={config.thinking_mode}
-              onChange={(e) => update("thinking_mode", e.target.value)}
-            >
-              <option value="none">None</option>
-              <option value="adaptive">Adaptive</option>
-              <option value="enabled">Enabled with budget</option>
-            </select>
-          </label>
-        ) : (
-          <label>
-            Reasoning effort
-            <select
-              value={config.reasoning_effort}
-              onChange={(e) => update("reasoning_effort", e.target.value)}
-            >
-              {["", "low", "medium", "high"].map((x) => (
-                <option value={x} key={x}>
-                  {x || "Provider default"}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-      </div>
-      {config.thinking_mode === "enabled" && (
-        <label>
-          Thinking budget
-          <Input
-            type="number"
-            value={config.thinking_budget}
-            onChange={(e) => update("thinking_budget", Number(e.target.value))}
-          />
-        </label>
-      )}
-      <div className="actions">
-        <Button type="submit" className="primary">
-          Save connection
-        </Button>
-        {saved && <span className="success-text">Saved locally ✓</span>}
-      </div>
-      <p className="muted">
-        Runtime paths: ./data · ./workspace · ./.runtime
-        <br />
-        No account or sign-in required.
-      </p>
-    </form>
-  );
+  const fields: [string, string][] = [
+    ["provider", "FLUXYR_PROVIDER"], ["model", "FLUXYR_MODEL"],
+    ["agent_name", "FLUXYR_AGENT_NAME"],
+    ["provider_endpoint", "FLUXYR_PROVIDER_ENDPOINT"], ["provider_format", "FLUXYR_PROVIDER_FORMAT"], ["max_tokens", "FLUXYR_MAX_TOKENS"],
+    ["reasoning_effort", "FLUXYR_REASONING_EFFORT"], ["thinking_mode", "FLUXYR_THINKING_MODE"],
+    ["thinking_budget", "FLUXYR_THINKING_BUDGET"],
+  ];
+  return <div className="panel settings">
+    <h2>Environment configuration</h2>
+    <p>Edit your application’s .env or deployment environment, then restart to apply changes.</p>
+    {fields.map(([key, variable]) => <Label key={key}>{variable}<Input readOnly value={String(config[key] ?? "")} /></Label>)}
+    <Separator />
+    <p>{config.provider.toUpperCase()}_API_KEY: {config.configured_keys?.[config.provider] ? "Configured" : "Not configured"}</p>
+    <p className="muted">Credential values are never returned by this screen.</p>
+  </div>;
 }
 function Files({ onError }: { onError: (s: string) => void }) {
   const [path, setPath] = useState("."),
@@ -447,9 +330,9 @@ function Files({ onError }: { onError: (s: string) => void }) {
           >
             + File
           </Button>
-          <label className="button">
+          <Label className="button">
             Upload
-            <input
+            <Input
               type="file"
               hidden
               onChange={async (e) => {
@@ -470,7 +353,7 @@ function Files({ onError }: { onError: (s: string) => void }) {
                 }
               }}
             />
-          </label>
+          </Label>
         </div>
       </div>
       <div className="file-layout">

@@ -1,3 +1,4 @@
+import { Status } from "./status";
 import { useMemo, useEffect, useState, useRef, useLayoutEffect } from "react";
 import { mainSession, type RecordData } from "./api";
 import { Button, DebugId } from "./components";
@@ -81,7 +82,7 @@ export function LiveActivity({
               </Button>
               <DebugId id={r.jobId} />
               <UsageBadge jobId={r.jobId} />
-              <small>{r.status}</small>
+              <Status status={r.status} />
             </div>
             <div className="activity-phase">
               {r.active &&

@@ -1,3 +1,7 @@
+import { Switch } from "./ui/switch/switch";
+import { Separator } from "./ui/separator/separator";
+import { SelectField, SelectOption } from "./form-select";
+import { Label } from "./ui/label/label";
 import { useState, useEffect, useCallback, type FormEvent } from "react";
 import { api, date, type RecordData } from "./api";
 import { Button, Input, Textarea, Badge } from "./components";
@@ -22,6 +26,7 @@ import {
   DialogBody,
 } from "./ui/dialog/dialog";
 import { Actions } from "./resources";
+import { VaultForm, vaultKinds as kinds } from "./vault-form";
 import { CronEditor } from "./cron-editor";
 import { describeCron } from "./cron";
 
@@ -29,78 +34,6 @@ type Props = {
   page: string;
   onError: (s: string) => void;
   open: (s: string) => void;
-};
-const kinds: Record<string, string> = {
-  text: "Secret text",
-  key_password: "Key and password",
-  access_token: "Access token",
-  oauth2: "OAuth 2.0",
-  certificate_pem: "PEM certificate",
-  certificate_pfx: "PFX / PKCS#12 certificate",
-};
-type Field = {
-  key: string;
-  label: string;
-  type?: string;
-  required?: boolean;
-  accept?: string;
-};
-const vaultFields: Record<string, Field[]> = {
-  text: [
-    { key: "value", label: "Secret value", type: "password", required: true },
-  ],
-  key_password: [
-    { key: "key", label: "Key / username", required: true },
-    { key: "password", label: "Password", type: "password", required: true },
-  ],
-  access_token: [
-    {
-      key: "access_token",
-      label: "Access token",
-      type: "password",
-      required: true,
-    },
-  ],
-  oauth2: [
-    { key: "client_id", label: "Client ID", required: true },
-    { key: "client_secret", label: "Client secret", type: "password" },
-    {
-      key: "authorization_url",
-      label: "Authorization URL",
-      type: "url",
-      required: true,
-    },
-    { key: "token_url", label: "Token URL", type: "url", required: true },
-    { key: "scope", label: "Scopes (space separated)" },
-    { key: "certificate_name", label: "Client certificate (Vault item name)" },
-  ],
-  certificate_pem: [
-    {
-      key: "certificate",
-      label: "Certificate PEM",
-      type: "pem",
-      required: true,
-      accept: ".pem,.crt,.cer",
-    },
-    {
-      key: "private_key",
-      label: "Private key PEM",
-      type: "pem",
-      required: true,
-      accept: ".pem,.key",
-    },
-    { key: "passphrase", label: "Private key passphrase", type: "password" },
-  ],
-  certificate_pfx: [
-    {
-      key: "pfx_base64",
-      label: "PFX / PKCS#12 file",
-      type: "binary",
-      required: true,
-      accept: ".pfx,.p12",
-    },
-    { key: "passphrase", label: "Certificate password", type: "password" },
-  ],
 };
 const defaults: Record<string, RecordData> = {
   Skills: { name: "", description: "", instruction: "", spec: "" },
@@ -127,8 +60,7 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
   const [scheduleValid, setScheduleValid] = useState(true);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [deleting, setDeleting] = useState<RecordData | null>(null),
-    [fileNames, setFileNames] = useState<Record<string, string>>({});
+    [deleting, setDeleting] = useState<RecordData | null>(null);
   const path = "/" + page.toLowerCase(),
     singular =
       page === "Vault" ? "vault item" : page.slice(0, -1).toLowerCase();
@@ -147,11 +79,14 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
     setScheduleValid(true);
     setSelected(item || null);
     setError("");
-    setFileNames({});
     setValues(
       item
         ? page === "Vault"
-          ? { name: item.name, kind: item.type, content: {} }
+          ? {
+              name: item.name,
+              kind: item.type,
+              oauth_config: item.oauth_config,
+            }
           : { ...defaults[page], ...item }
         : structuredClone(defaults[page]),
     );
@@ -159,24 +94,13 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
   }
   const set = (key: string, value: any) =>
     setValues((v) => ({ ...v, [key]: value }));
-  const content = (key: string, value: string) =>
-    setValues((v) => ({ ...v, content: { ...v.content, [key]: value } }));
   async function save(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError("");
     try {
       let body: RecordData;
-      if (page === "Vault") {
-        const entries = Object.fromEntries(
-          Object.entries(values.content).filter(
-            ([, v]) => !selected || v !== "",
-          ),
-        );
-        body = selected
-          ? { name: values.name, content: entries }
-          : { name: values.name, kind: values.kind, content: entries };
-      } else if (page === "Skills")
+      if (page === "Skills")
         body = {
           name: values.name,
           description: values.description,
@@ -206,26 +130,6 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
       setBusy(false);
     }
   }
-  async function upload(field: Field, file?: File) {
-    if (!file) return;
-    try {
-      if (file.size > 2 * 1024 * 1024)
-        throw new Error("Certificate file must be smaller than 2 MB.");
-      if (field.type === "binary") {
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        let binary = "";
-        for (let offset = 0; offset < bytes.length; offset += 8192)
-          binary += String.fromCharCode(
-            ...bytes.subarray(offset, offset + 8192),
-          );
-        content(field.key, btoa(binary));
-      } else content(field.key, await file.text());
-      setFileNames((names) => ({ ...names, [field.key]: file.name }));
-      setError("");
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }
   async function action(fn: () => Promise<any>) {
     setBusy(true);
     try {
@@ -252,7 +156,7 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
   return (
     <div className="resource-catalogue">
       <div className="catalogue-toolbar">
-        <label className="catalogue-search">
+        <Label className="catalogue-search">
           <Search size={15} />
           <Input
             aria-label={`Search ${page.toLowerCase()}`}
@@ -260,26 +164,26 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-        </label>
-        <select
+        </Label>
+        <SelectField
           aria-label={`Filter ${page.toLowerCase()}`}
           value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+          onValueChange={(value) => setFilter(value)}
         >
-          <option value="all">All {page.toLowerCase()}</option>
+          <SelectOption value="all">All {page.toLowerCase()}</SelectOption>
           {page === "Vault" ? (
             Object.entries(kinds).map(([k, v]) => (
-              <option key={k} value={k}>
+              <SelectOption key={k} value={k}>
                 {v}
-              </option>
+              </SelectOption>
             ))
           ) : (
             <>
-              <option value="true">Enabled</option>
-              <option value="false">Disabled</option>
+              <SelectOption value="true">Enabled</SelectOption>
+              <SelectOption value="false">Disabled</SelectOption>
             </>
           )}
-        </select>
+        </SelectField>
         <span className="catalogue-count">
           {filtered.length}/{items.length}
         </span>
@@ -320,7 +224,11 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                 <div className="catalogue-meta">
                   {page === "Skills" ? (
                     <>
-                      <span>{item.tools?.length || 0} actions</span>
+                      <span>
+                        {item.readonly
+                          ? `File · ${item.source_path}`
+                          : `${item.tools?.length || 0} actions`}
+                      </span>
                       <Badge variant={item.enabled ? "ACTIVE" : "OFFLINE"}>
                         {item.enabled ? "Enabled" : "Disabled"}
                       </Badge>
@@ -359,12 +267,19 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                     </Button>
                   )}
                   <Button
+                    disabled={item.readonly}
+                    title={
+                      item.readonly
+                        ? "Edit the Markdown file and restart"
+                        : undefined
+                    }
                     aria-label={`Edit ${item.name}`}
                     onClick={() => edit(item)}
                   >
                     <Pencil size={14} />
                   </Button>
                   <Button
+                    disabled={item.readonly}
                     aria-label={`Delete ${item.name}`}
                     className="danger"
                     onClick={() => {
@@ -380,35 +295,42 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                 <div className="catalogue-detail">
                   {page === "Skills" ? (
                     <>
-                      <div className="actions">
-                        <Button
-                          disabled={busy}
-                          onClick={() =>
-                            action(async () => {
-                              const job = await api(
-                                path + "/" + item.id + "/build",
-                                "POST",
-                                {},
-                              );
-                              open(job.session_id);
-                            })
-                          }
-                        >
-                          Build actions ↗
-                        </Button>
-                        <Button
-                          disabled={busy}
-                          onClick={() =>
-                            action(() =>
-                              api(path + "/" + item.id, "PATCH", {
-                                enabled: !item.enabled,
-                              }),
-                            )
-                          }
-                        >
-                          {item.enabled ? "Disable" : "Enable"} skill
-                        </Button>
-                      </div>
+                      {item.readonly ? (
+                        <p className="muted">
+                          Managed by {item.source_path}. Edit the Markdown file
+                          and restart the application.
+                        </p>
+                      ) : (
+                        <div className="actions">
+                          <Button
+                            disabled={busy || item.readonly}
+                            onClick={() =>
+                              action(async () => {
+                                const job = await api(
+                                  path + "/" + item.id + "/build",
+                                  "POST",
+                                  {},
+                                );
+                                open(job.session_id);
+                              })
+                            }
+                          >
+                            Build actions ↗
+                          </Button>
+                          <Button
+                            disabled={busy || item.readonly}
+                            onClick={() =>
+                              action(() =>
+                                api(path + "/" + item.id, "PATCH", {
+                                  enabled: !item.enabled,
+                                }),
+                              )
+                            }
+                          >
+                            {item.enabled ? "Disable" : "Enable"} skill
+                          </Button>
+                        </div>
+                      )}
                       <details>
                         <summary>
                           Instructions and technical specification
@@ -418,12 +340,14 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                         <h3>Specification</h3>
                         <pre>{item.spec || "No specification saved."}</pre>
                       </details>
-                      <Actions
-                        skill={item}
-                        reload={load}
-                        onError={onError}
-                        open={open}
-                      />
+                      {!item.readonly && (
+                        <Actions
+                          skill={item}
+                          reload={load}
+                          onError={onError}
+                          open={open}
+                        />
+                      )}
                     </>
                   ) : page === "Routines" ? (
                     <>
@@ -479,23 +403,33 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                         Values are encrypted and are not returned to the
                         browser.
                       </p>
-                      {item.type === "oauth2" && (
-                        <Button
-                          disabled={busy}
-                          onClick={() =>
-                            action(async () => {
-                              const r = await api(
-                                "/vault/oauth/start",
-                                "POST",
-                                { name: item.name },
-                              );
-                              window.location.href = r.url;
-                            })
-                          }
-                        >
-                          Connect OAuth ↗
-                        </Button>
-                      )}
+                      {item.type === "oauth2" &&
+                        item.oauth_config?.grant_type ===
+                          "client_credentials" && (
+                          <p>
+                            Client credentials · Tokens are obtained
+                            automatically when an action uses this credential.
+                          </p>
+                        )}
+                      {item.type === "oauth2" &&
+                        item.oauth_config?.grant_type !==
+                          "client_credentials" && (
+                          <Button
+                            disabled={busy || item.readonly}
+                            onClick={() =>
+                              action(async () => {
+                                const r = await api(
+                                  "/vault/oauth/start",
+                                  "POST",
+                                  { name: item.name },
+                                );
+                                window.location.href = r.url;
+                              })
+                            }
+                          >
+                            Connect OAuth ↗
+                          </Button>
+                        )}
                     </>
                   )}
                 </div>
@@ -546,202 +480,135 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <form onSubmit={save} className="resource-form">
-              <label>
-                Name
-                <Input
-                  required
-                  value={values.name || ""}
-                  onChange={(e) => set("name", e.target.value)}
-                  autoComplete="off"
-                />
-              </label>
-              {page === "Skills" ? (
-                <>
-                  <label>
-                    Description
-                    <Input
-                      value={values.description || ""}
-                      onChange={(e) => set("description", e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    Instructions
-                    <Textarea
-                      required
-                      rows={5}
-                      value={values.instruction || ""}
-                      onChange={(e) => set("instruction", e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    Technical specification
-                    <Textarea
-                      rows={7}
-                      value={values.spec || ""}
-                      onChange={(e) => set("spec", e.target.value)}
-                      placeholder="Actions, inputs, expected outputs, dependencies and examples…"
-                    />
-                  </label>
-                </>
-              ) : page === "Routines" ? (
-                <>
-                  <label>
-                    Task prompt
-                    <Textarea
-                      required
-                      rows={5}
-                      value={values.prompt || ""}
-                      onChange={(e) => set("prompt", e.target.value)}
-                    />
-                  </label>
-                  <CronEditor
-                    cron={values.cron || ""}
-                    timezone={values.timezone ?? "UTC"}
-                    onChange={(cron) =>
-                      setValues((v) => ({
-                        ...v,
-                        cron,
-                        enabled: cron ? v.enabled : false,
-                      }))
-                    }
-                    onTimezone={(timezone) => set("timezone", timezone)}
-                    onValidity={setScheduleValid}
+            {page === "Vault" ? (
+              <VaultForm
+                key={selected?.id || "new"}
+                initial={values}
+                editing={!!selected}
+                onBusyChange={setBusy}
+                onCancel={() => {
+                  setEditing(false);
+                  setValues(structuredClone(defaults[page]));
+                }}
+                onSave={async ({ name, kind, content }) => {
+                  await api(
+                    path + (selected ? "/" + selected.id : ""),
+                    selected ? "PATCH" : "POST",
+                    selected ? { name, content } : { name, kind, content },
+                  );
+                  setEditing(false);
+                  setValues(structuredClone(defaults[page]));
+                  await load();
+                }}
+              />
+            ) : (
+              <form onSubmit={save} className="resource-form">
+                <Label>
+                  Name
+                  <Input
+                    required
+                    value={values.name || ""}
+                    onChange={(e) => set("name", e.target.value)}
+                    autoComplete="off"
                   />
-                  <label>
-                    When another execution is running
-                    <select
-                      value={values.overlap}
-                      onChange={(e) => set("overlap", e.target.value)}
-                    >
-                      <option value="queue">Queue the next execution</option>
-                      <option value="skip">Skip this occurrence</option>
-                    </select>
-                  </label>
-                  <label className="check-field">
-                    <input
-                      type="checkbox"
-                      disabled={!values.cron}
-                      checked={!!values.enabled}
-                      onChange={(e) => set("enabled", e.target.checked)}
+                </Label>
+                {page === "Skills" ? (
+                  <>
+                    <Label>
+                      Description
+                      <Input
+                        value={values.description || ""}
+                        onChange={(e) => set("description", e.target.value)}
+                      />
+                    </Label>
+                    <Label>
+                      Instructions
+                      <Textarea
+                        required
+                        rows={5}
+                        value={values.instruction || ""}
+                        onChange={(e) => set("instruction", e.target.value)}
+                      />
+                    </Label>
+                    <Label>
+                      Technical specification
+                      <Textarea
+                        rows={7}
+                        value={values.spec || ""}
+                        onChange={(e) => set("spec", e.target.value)}
+                        placeholder="Actions, inputs, expected outputs, dependencies and examples…"
+                      />
+                    </Label>
+                  </>
+                ) : page === "Routines" ? (
+                  <>
+                    <Label>
+                      Task prompt
+                      <Textarea
+                        required
+                        rows={5}
+                        value={values.prompt || ""}
+                        onChange={(e) => set("prompt", e.target.value)}
+                      />
+                    </Label>
+                    <CronEditor
+                      cron={values.cron || ""}
+                      timezone={values.timezone ?? "UTC"}
+                      onChange={(cron) =>
+                        setValues((v) => ({
+                          ...v,
+                          cron,
+                          enabled: cron ? v.enabled : false,
+                        }))
+                      }
+                      onTimezone={(timezone) => set("timezone", timezone)}
+                      onValidity={setScheduleValid}
                     />
-                    Enable schedule
-                  </label>
-                </>
-              ) : (
-                <>
-                  <label>
-                    Credential type
-                    <select
-                      disabled={!!selected}
-                      value={values.kind}
-                      onChange={(e) => {
-                        set("kind", e.target.value);
-                        set("content", {});
-                        setFileNames({});
-                      }}
-                    >
-                      {Object.entries(kinds).map(([k, v]) => (
-                        <option key={k} value={k}>
-                          {v}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {vaultFields[values.kind]?.map((field) => (
-                    <label key={field.key}>
-                      {field.label}
-                      {["pem", "binary"].includes(field.type || "") ? (
-                        <>
-                          <input
-                            type="file"
-                            accept={field.accept}
-                            aria-label={`Upload ${field.label}`}
-                            required={
-                              !selected &&
-                              field.required &&
-                              !values.content?.[field.key]
-                            }
-                            onChange={(e) => upload(field, e.target.files?.[0])}
-                          />
-                          {fileNames[field.key] && (
-                            <small>
-                              {fileNames[field.key]} · ready to save
-                            </small>
-                          )}
-                          {field.type === "pem" && (
-                            <Textarea
-                              rows={4}
-                              aria-label={field.label}
-                              value={values.content?.[field.key] || ""}
-                              onChange={(e) =>
-                                content(field.key, e.target.value)
-                              }
-                              placeholder={
-                                selected
-                                  ? "Leave blank to keep saved file"
-                                  : "Or paste PEM content here"
-                              }
-                            />
-                          )}
-                        </>
-                      ) : (
-                        <Input
-                          type={field.type || "text"}
-                          autoComplete="off"
-                          required={!selected && field.required}
-                          value={values.content?.[field.key] || ""}
-                          onChange={(e) => content(field.key, e.target.value)}
-                          placeholder={
-                            selected ? "Unchanged unless entered" : ""
-                          }
-                        />
-                      )}
-                    </label>
-                  ))}
-                  {values.kind === "oauth2" && (
-                    <label>
-                      Token authentication
-                      <select
-                        value={values.content?.token_auth_method || ""}
-                        onChange={(e) =>
-                          content("token_auth_method", e.target.value)
-                        }
+                    <Label>
+                      When another execution is running
+                      <SelectField
+                        value={values.overlap}
+                        onValueChange={(value) => set("overlap", value)}
                       >
-                        <option value="">
-                          {selected
-                            ? "Keep current method"
-                            : "Client secret in request body (default)"}
-                        </option>
-                        <option value="client_secret_post">
-                          Client secret in request body
-                        </option>
-                        <option value="client_secret_basic">
-                          HTTP Basic authentication
-                        </option>
-                      </select>
-                    </label>
-                  )}
-                </>
-              )}
-              {error && (
-                <p role="alert" className="form-error">
-                  {error}
-                </p>
-              )}
-              <div className="dialog-actions">
-                <Button disabled={busy} onClick={() => setEditing(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  className="primary"
-                  disabled={busy || (page === "Routines" && !scheduleValid)}
-                >
-                  {busy ? "Saving…" : "Save " + singular}
-                </Button>
-              </div>
-            </form>
+                        <SelectOption value="queue">
+                          Queue the next execution
+                        </SelectOption>
+                        <SelectOption value="skip">
+                          Skip this occurrence
+                        </SelectOption>
+                      </SelectField>
+                    </Label>
+                    <Label className="check-field">
+                      <Switch
+                        type="button"
+                        disabled={!values.cron}
+                        checked={!!values.enabled}
+                        onCheckedChange={(checked) => set("enabled", checked)}
+                      />
+                      Enable schedule
+                    </Label>
+                  </>
+                ) : null}
+                {error && (
+                  <p role="alert" className="form-error">
+                    {error}
+                  </p>
+                )}
+                <Separator />
+                <div className="dialog-actions">
+                  <Button disabled={busy} onClick={() => setEditing(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="primary"
+                    disabled={busy || (page === "Routines" && !scheduleValid)}
+                  >
+                    {busy ? "Saving…" : "Save " + singular}
+                  </Button>
+                </div>
+              </form>
+            )}
           </DialogBody>
         </DialogContent>
       </Dialog>
@@ -769,6 +636,7 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                 {error}
               </p>
             )}
+            <Separator />
             <div className="dialog-actions">
               <Button disabled={busy} onClick={() => setDeleting(null)}>
                 Keep {singular}

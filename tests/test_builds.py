@@ -5,8 +5,8 @@ import pytest
 from conftest import execute_next
 from sqlalchemy import select, text
 
-from fluxyr_agent.models import Effect, Job, Tool, ToolVersion, Version
-from fluxyr_agent.tools.registry import Registry
+from fluxyr.models import Effect, Job, Tool, ToolVersion, Version
+from fluxyr.tools.registry import Registry
 
 
 def setup_skill(e):

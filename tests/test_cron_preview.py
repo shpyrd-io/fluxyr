@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fluxyr_agent.routines import next_occurrence
+from fluxyr.routines import next_occurrence
 
 
 def test_preview_uses_scheduler_timezone_and_never_creates_a_routine(make_app):

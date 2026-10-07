@@ -1,3 +1,4 @@
+import { SelectField, SelectOption } from "./form-select";
 import { useEffect, useState } from "react";
 import { api, type RecordData } from "./api";
 import { Input } from "./components";
@@ -20,14 +21,7 @@ const toolGroups: Record<string, string[]> = {
     "delete_skill",
   ],
   "Web & documentation": ["web_browse", "web_extract", "tech_doc"],
-  Files: [
-    "list_files",
-    "read_file",
-    "write_file",
-    "file_operation",
-    "search_files",
-    "render_preview",
-  ],
+  "Files & shell": ["read", "write", "edit", "bash", "render_preview"],
   Memory: ["read_memory", "save_in_memory", "delete_memory", "observe_pattern"],
   Routines: [
     "list_routines",
@@ -41,7 +35,7 @@ const toolGroups: Record<string, string[]> = {
     "finish_execution",
     "ask_human",
   ],
-  Vault: ["vault_list"],
+  Vault: ["vault_list", "check_vault_credential", "manage_vault_credential"],
   Agent: ["list_tools"],
 };
 const toolSummaries: Record<string, string> = {
@@ -65,13 +59,17 @@ const toolSummaries: Record<string, string> = {
   read_memory: "Read or search saved memories without changing them.",
   save_in_memory: "Save a fact or experience in long-term memory.",
   delete_memory: "Forget a saved fact or episode.",
-  list_files: "List files and folders in ./data.",
-  read_file: "Read a local text file.",
-  write_file: "Create or update a local text file.",
-  file_operation: "Create a folder, move a path or delete a file.",
-  search_files: "Find text inside local files.",
+  read: "Read text by lines or inspect an image.",
+  write: "Create a file or replace its full contents.",
+  edit: "Replace specific text blocks and inspect the diff.",
+  bash: "Run shell commands with streaming output.",
   render_preview: "Display a local file in the conversation.",
-  vault_list: "List secret names and types; values stay hidden.",
+  manage_vault_credential:
+    "Open a private credential form in chat and wait for you to save it.",
+  vault_list:
+    "List credentials and safe OAuth configuration; values stay hidden.",
+  check_vault_credential:
+    "Check credential readiness and OAuth token exchange without exposing secrets.",
   list_routines: "List saved routines and schedules.",
   create_routine: "Create a task to run manually or on a schedule.",
   update_routine: "Change a routine or its schedule.",
@@ -80,7 +78,9 @@ const toolSummaries: Record<string, string> = {
   inspect_execution: "Read an execution’s context, events and result.",
   finish_execution: "Finish the current routine with a report.",
 };
-function toolGroup(name: string) {
+function toolGroup(tool: RecordData) {
+  const name = tool.name;
+  if (tool.source === "application") return "Application tools";
   if (name.startsWith("action_")) return "Skill actions";
   return (
     Object.entries(toolGroups).find(([, names]) => names.includes(name))?.[0] ||
@@ -98,12 +98,14 @@ export function ToolCatalogue({ onError }: { onError: (s: string) => void }) {
       .catch((e) => onError(e.message))
       .finally(() => setLoaded(true));
   }, [onError]);
-  const groups = ["Skill actions", ...Object.keys(toolGroups)].filter((g) =>
-    tools.some((t) => toolGroup(t.name) === g),
-  );
+  const groups = [
+    "Application tools",
+    "Skill actions",
+    ...Object.keys(toolGroups),
+  ].filter((g) => tools.some((t) => toolGroup(t) === g));
   const filtered = tools.filter(
     (t) =>
-      (group === "All tools" || toolGroup(t.name) === group) &&
+      (group === "All tools" || toolGroup(t) === group) &&
       `${t.name} ${t.description} ${toolSummaries[t.name] || ""}`
         .toLowerCase()
         .includes(query.toLowerCase()),
@@ -120,16 +122,16 @@ export function ToolCatalogue({ onError }: { onError: (s: string) => void }) {
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <select
+        <SelectField
           aria-label="Filter tools by category"
           value={group}
-          onChange={(e) => setGroup(e.target.value)}
+          onValueChange={(value) => setGroup(value)}
         >
-          <option>All tools</option>
+          <SelectOption>All tools</SelectOption>
           {groups.map((g) => (
-            <option key={g}>{g}</option>
+            <SelectOption key={g}>{g}</SelectOption>
           ))}
-        </select>
+        </SelectField>
         <span className="tool-count">
           {filtered.length} of {tools.length}
         </span>
@@ -141,7 +143,7 @@ export function ToolCatalogue({ onError }: { onError: (s: string) => void }) {
         <span />
       </div>
       {groups.map((g) => {
-        const members = filtered.filter((t) => toolGroup(t.name) === g);
+        const members = filtered.filter((t) => toolGroup(t) === g);
         if (!members.length) return null;
         return (
           <section className="tool-group" key={g} aria-label={g}>

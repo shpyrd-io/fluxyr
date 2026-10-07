@@ -7,7 +7,13 @@ workspace
 **/__pycache__
 .pytest_cache
 frontend/node_modules
-fluxyr_agent/static
+fluxyr/static
 *.egg-info
 .pnpm-store
 test-results
+
+.env.*
+!.env.example
+dist
+build
+.ruff_cache

@@ -5,10 +5,10 @@ from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy import select, text
 from conftest import execute_next
-from fluxyr_agent.database import MAIN_SESSION
-from fluxyr_agent.models import Job, MemoryTask, Session
-from fluxyr_agent.core.memory.semantic import SemanticMemory
-from fluxyr_agent.core.memory.extraction_context import turn_messages
+from fluxyr.database import MAIN_SESSION
+from fluxyr.models import Job, MemoryTask, Session
+from fluxyr.core.memory.semantic import SemanticMemory
+from fluxyr.core.memory.extraction_context import turn_messages
 
 
 def candidate(task, key="wallet", value="old"):
@@ -146,7 +146,7 @@ def test_fifo_waits_for_foreground_and_ready_results_survive_restart(make_app):
         assert s.get(MemoryTask, first["id"]).status == "ready"
     e.execute(job)
     assert e.memory_queue.claim() is None  # prior ready task must apply first
-    from fluxyr_agent.engine import Engine
+    from fluxyr.engine import Engine
 
     restarted = Engine(e.settings, lambda: adapter)
     restarted.memory_queue.apply_ready()

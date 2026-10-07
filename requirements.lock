@@ -27,6 +27,7 @@ markdownify==1.2.3
 MarkupSafe==3.0.4
 openai==2.54.0
 packaging==26.3
+Pillow==12.3.0
 pluggy==1.6.0
 psycopg2-binary==2.9.13
 pycparser==3.0

@@ -5,10 +5,10 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 
-from fluxyr_agent.app import create_app
-from fluxyr_agent.config import Settings
-from fluxyr_agent.core.adapters.base import AIProviderAdapter
-from fluxyr_agent.core.utils.token_usage import TokenUsage
+from fluxyr.app import create_app
+from fluxyr.config import Settings
+from fluxyr.core.adapters.base import AIProviderAdapter
+from fluxyr.core.utils.token_usage import TokenUsage
 
 
 class ScriptedAdapter(AIProviderAdapter):
@@ -114,8 +114,8 @@ def execute_next(engine):
     job = engine.store.claim(engine.owner)
     assert job is not None
     engine.execute(job)
-    from fluxyr_agent.database import row_dict
-    from fluxyr_agent.models import Job
+    from fluxyr.database import row_dict
+    from fluxyr.models import Job
 
     with engine.db.transaction() as s:
         return row_dict(s.get(Job, job["id"]))

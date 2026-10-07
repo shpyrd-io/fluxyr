@@ -2,8 +2,8 @@ import json
 
 from sqlalchemy import select
 
-from fluxyr_agent.models import Event
-from fluxyr_agent.persistence import bounded, event_payload, restore_tool_identity
+from fluxyr.models import Event
+from fluxyr.persistence import bounded, event_payload, restore_tool_identity
 
 
 def test_large_inspection_keeps_lifecycle_identity_in_postgres_and_replay(make_app):

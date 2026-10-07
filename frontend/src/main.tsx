@@ -1,3 +1,15 @@
+import { Status, statusLabel } from "./status";
+import { StatusGrid } from "./ui/status-grid/status-grid";
+import { Typography } from "./ui/typography/typography";
+import { Separator } from "./ui/separator/separator";
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "./ui/breadcrumb/breadcrumb";
 import React, {
   useState,
   useEffect,
@@ -7,6 +19,7 @@ import React, {
   useLayoutEffect,
 } from "react";
 import { createRoot } from "react-dom/client";
+import { useHistoryWindow } from "./use-history-window";
 import { api, mainSession, RecordData, date } from "./api";
 import { Resources } from "./resources";
 import { Markdown } from "./markdown";
@@ -14,15 +27,14 @@ import { LiveActivity } from "./live-activity";
 import { UsageProvider, UsageBadge } from "./usage";
 import { ExecutionFlowPanel } from "./execution-flow-panel";
 import { buildTimeline } from "./timeline";
+import { pendingInteractions } from "./pending-interactions";
+import { HumanRequest } from "./human-request";
 import { BuildProgress } from "./build-progress";
 import {
   Button,
   Textarea,
   Badge,
   Panel,
-  PanelHeader,
-  PanelTitle,
-  PanelContent,
   Logo,
   Wordmark,
   DebugId,
@@ -48,20 +60,16 @@ import {
   ArrowUpRight,
   BrainCircuit,
   Eraser,
-  ChevronRight,
   RefreshCw,
   UserRound,
   Cpu,
-  Database,
-  Radio,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
 import "@fontsource/ibm-plex-mono/latin-400.css";
 import "@fontsource/ibm-plex-mono/latin-500.css";
-import "@fontsource/inter/latin-400.css";
-import "@fontsource/inter/latin-500.css";
-import "@fontsource/inter/latin-600.css";
+import "@fontsource/ibm-plex-mono/latin-600.css";
+import "@fontsource/ibm-plex-mono/latin-700.css";
 import { Spinner } from "./ui/spinner/spinner";
 import "./styles/scificn.css";
 import "./style.css";
@@ -101,6 +109,8 @@ function App() {
     [error, setError] = useState("");
   const [collapsed, setCollapsed] = useState(false);
   const [model, setModel] = useState("");
+  const [engineVersion, setEngineVersion] = useState("");
+  const [agentName, setAgentName] = useState("Default Agent");
   const [jobs, setJobs] = useState<RecordData[]>([]),
     [ready, setReady] = useState(false);
   const refresh = useCallback(
@@ -112,10 +122,16 @@ function App() {
   );
   useEffect(() => {
     api("/settings")
-      .then((c) => setModel(c.model))
+      .then((c) => {
+        setModel(c.model);
+        setAgentName(c.agent_name || "Default Agent");
+      })
       .catch(() => {});
     api("/health")
-      .then((h) => setReady(h.worker === true))
+      .then((h) => {
+        setReady(h.worker === true);
+        setEngineVersion(h.version || "");
+      })
       .catch((e) => setError(e.message));
     refresh();
     const id = setInterval(refresh, 4000);
@@ -147,7 +163,9 @@ function App() {
         </a>
         <div className="instance">
           <span className={"dot " + (ready ? "online" : "")} />
-          <span>Local instance</span> <small>01</small>
+          <span className="instance-name" title={agentName}>
+            {agentName}
+          </span>
         </div>
         <p className="nav-heading">WORKSPACE</p>
         <nav aria-label="Main navigation">
@@ -171,30 +189,22 @@ function App() {
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <Panel className="runtime-panel" notch="sm">
-            <PanelHeader>
-              <Radio size={13} />
-              <PanelTitle>Local runtime</PanelTitle>
-            </PanelHeader>
-            <PanelContent>
-              <div className="runtime-line">
-                <span>Worker</span>
-                <Badge variant={ready ? "ACTIVE" : "OFFLINE"}>
-                  {ready ? "Online" : "Offline"}
-                </Badge>
-              </div>
-              <div className="runtime-line">
-                <span>Active jobs</span>
-                <strong>{String(active).padStart(2, "0")}</strong>
-              </div>
-              <div className="runtime-stack">
-                <Cpu size={12} /> Python <span>/</span>
-                <Database size={12} /> PostgreSQL
-              </div>
-            </PanelContent>
-          </Panel>
+          <StatusGrid
+            className="runtime-panel"
+            title="Local runtime"
+            columns={1}
+            systems={[
+              { name: "Worker", status: ready ? "ACTIVE" : "OFFLINE" },
+              {
+                name: "Jobs",
+                detail: String(active).padStart(2, "0"),
+                status: active ? "SCANNING" : "ACTIVE",
+              },
+            ]}
+          />
+          <Separator />
           <div className="instance-footer">
-            ENGINE VERSION <span>v0.1</span>
+            ENGINE VERSION <span>{engineVersion ? `v${engineVersion}` : "—"}</span>
           </div>
         </div>
       </aside>
@@ -213,9 +223,29 @@ function App() {
                 <PanelLeftClose size={17} />
               )}
             </Button>
-            <span>FLUXYR AGENT</span>
-            <ChevronRight size={12} />
-            <strong>{page}</strong>
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <BreadcrumbLink
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      open(mainSession);
+                    }}
+                  >
+                    Fluxyr Agent
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>
+                    {page === "Workbench" && session !== mainSession
+                      ? "Execution"
+                      : page}
+                  </BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
           </div>
           <div className="topbar-status">
             <span className="model-label">
@@ -250,7 +280,7 @@ function App() {
             <div className="page-title">
               <div>
                 <p className="eyebrow">OBSERVABILITY</p>
-                <h1>Executions</h1>
+                <Typography variant="H1">Executions</Typography>
                 <p>Separate contexts. One place to see what happened.</p>
               </div>
               <Button onClick={refresh}>
@@ -296,22 +326,6 @@ function App() {
     </div>
   );
 }
-function Status({ status = "queued" }: { status: string }) {
-  const variant = ["running", "building"].includes(status)
-    ? "SCANNING"
-    : ["succeeded", "completed", "active"].includes(status)
-      ? "ACTIVE"
-      : ["failed", "interrupted", "cancelled", "error"].includes(status)
-        ? "CRITICAL"
-        : ["paused", "waiting"].includes(status)
-          ? "WARNING"
-          : "OFFLINE";
-  return (
-    <Badge variant={variant} className={"status " + status}>
-      {status === "succeeded" ? "completed" : status.replaceAll("_", " ")}
-    </Badge>
-  );
-}
 export function Empty({ title, text }: { title: string; text: string }) {
   return (
     <div className="empty">
@@ -347,6 +361,8 @@ function Chat({
   const memoryTrigger = useRef<HTMLButtonElement>(null);
   const [controlBusy, setControlBusy] = useState(false);
   const [memoryOpen, setMemoryOpen] = useState(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const diagnosticsTrigger = useRef<HTMLButtonElement>(null);
   const [memory, setMemory] = useState<RecordData | null>(null);
   const streamRef = useRef<HTMLDivElement>(null),
     contentRef = useRef<HTMLDivElement>(null),
@@ -415,12 +431,16 @@ function Chat({
     () => buildTimeline(messages, events),
     [messages, events],
   );
+  const history = useHistoryWindow(
+    timeline,
+    streamRef,
+    () => followLatest.current,
+  );
   const jumpToLatest = useCallback(() => {
     followLatest.current = true;
     setShowLatest(false);
-    const el = streamRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, []);
+    history.goToLatest();
+  }, [history.goToLatest]);
   useLayoutEffect(() => {
     if (followLatest.current) jumpToLatest();
   }, [timeline, jumpToLatest]);
@@ -492,14 +512,29 @@ function Chat({
       <div className="chat">
         <div className="chat-title">
           <div>
-            <p className="eyebrow">
-              {session === mainSession
-                ? "01 / AGENT CONSOLE"
-                : kind === "build"
-                  ? "SKILL BUILDER"
-                  : "ISOLATED EXECUTION"}
-            </p>
-            <h1>{session === mainSession ? "Agent workbench" : title}</h1>
+            <Breadcrumb
+              className="chat-breadcrumb"
+              aria-label="Session breadcrumb"
+            >
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <span>01</span>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>
+                    {session === mainSession
+                      ? "Agent console"
+                      : kind === "build"
+                        ? "Skill builder"
+                        : "Isolated execution"}
+                  </BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+            <Typography variant="H1">
+              {session === mainSession ? "Agent workbench" : title}
+            </Typography>
             {session === mainSession && (
               <p className="chat-subtitle">
                 Build skills. Automate work. Keep the context.
@@ -507,6 +542,12 @@ function Chat({
             )}
           </div>
           <div className="session-actions">
+            <Button
+              ref={diagnosticsTrigger}
+              onClick={() => setDiagnosticsOpen(true)}
+            >
+              <Terminal size={14} /> Diagnostics
+            </Button>
             <Button
               ref={memoryTrigger}
               onClick={async () => {
@@ -545,6 +586,40 @@ function Chat({
             {active ? active.status.toUpperCase() : "READY FOR INPUT"}
           </span>
         </div>
+        <Dialog open={diagnosticsOpen} onOpenChange={setDiagnosticsOpen}>
+          <DialogContent
+            className="memory-dialog"
+            onCloseAutoFocus={(e) => {
+              e.preventDefault();
+              diagnosticsTrigger.current?.focus();
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Execution diagnostics</DialogTitle>
+              <DialogDescription>
+                Runner output and dependency installation logs. These do not
+                interrupt the conversation.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogBody>
+              {events.some((e) => e.type === "progress") ? (
+                <pre className="execution-log-output">
+                  {events
+                    .filter((e) => e.type === "progress")
+                    .map(
+                      (e) =>
+                        `[${e.job_id.slice(0, 8)}${e.payload.call_id ? " / " + e.payload.call_id : ""}] ${e.payload.text}`,
+                    )
+                    .join("\n")}
+                </pre>
+              ) : (
+                <Typography variant="MUTED">
+                  No runtime logs recorded for this session.
+                </Typography>
+              )}
+            </DialogBody>
+          </DialogContent>
+        </Dialog>
         <Dialog open={memoryOpen} onOpenChange={setMemoryOpen}>
           <DialogContent
             className="memory-dialog"
@@ -610,7 +685,9 @@ function Chat({
           onScroll={() => {
             const el = streamRef.current;
             if (!el) return;
+            history.onScroll();
             const nearBottom =
+              !history.hasNewer &&
               el.scrollHeight - el.scrollTop - el.clientHeight < 80;
             followLatest.current = nearBottom;
             setShowLatest(!nearBottom);
@@ -645,81 +722,99 @@ function Chat({
                 </div>
               </div>
             )}
-            {timeline.map((item) => (
-              <div id={`trace-${item.id}`} key={item.id}>
-                {" "}
-                {item.kind === "event" ? (
-                  <EventCard
+            {history.hasOlder && (
+              <div className="history-edge">Scroll up for earlier messages</div>
+            )}
+            <div className="history-window">
+              {history.items.map((item, index) => {
+                return (
+                  <div
+                    id={`trace-${item.id}`}
                     key={item.id}
-                    event={item.event!}
-                    open={open}
-                    jobs={allJobs}
-                  />
-                ) : item.kind === "reasoning" ? (
-                  <Reasoning
-                    key={item.id}
-                    text={item.text}
-                    live={!!item.live}
-                  />
-                ) : (
-                  <div key={item.id} className={"message " + item.kind}>
-                    {item.kind === "user" ? (
-                      <div className="avatar">
-                        <UserRound size={16} />
-                      </div>
+                    data-index={history.start + index}
+                    data-history-id={item.id}
+                    className="history-row"
+                  >
+                    {" "}
+                    {item.kind === "event" ? (
+                      <EventCard
+                        key={item.id}
+                        event={item.event!}
+                        open={open}
+                        jobs={allJobs}
+                      />
+                    ) : item.kind === "reasoning" ? (
+                      <Reasoning
+                        key={item.id}
+                        text={item.text}
+                        live={!!item.live}
+                      />
                     ) : (
-                      <Logo className="avatar" />
-                    )}
-                    <div className="message-body">
-                      <div className="message-label">
-                        {item.kind === "user" ? "You" : "Fluxyr Agent"}
-                        <time>
-                          {new Date(item.createdAt * 1000).toLocaleTimeString(
-                            [],
-                            {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            },
-                          )}
-                        </time>
-                      </div>
-                      <div
-                        className={
-                          "message-text" + (item.live ? " streaming" : "")
-                        }
-                      >
-                        <Markdown>{item.text}</Markdown>
-                        {item.live && (
-                          <Spinner
-                            size="MD"
-                            className="stream-spinner"
-                            aria-label="Generating response"
-                          />
+                      <div key={item.id} className={"message " + item.kind}>
+                        {item.kind === "user" ? (
+                          <div className="avatar">
+                            <UserRound size={16} />
+                          </div>
+                        ) : (
+                          <Logo className="avatar" />
                         )}
+                        <div className="message-body">
+                          <div className="message-label">
+                            {item.kind === "user" ? "You" : "Fluxyr Agent"}
+                            <time>
+                              {new Date(
+                                item.createdAt * 1000,
+                              ).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </time>
+                          </div>
+                          <div
+                            className={
+                              "message-text" + (item.live ? " streaming" : "")
+                            }
+                          >
+                            <Markdown>{item.text}</Markdown>
+                            {item.live && (
+                              <Spinner
+                                size="MD"
+                                className="stream-spinner"
+                                aria-label="Generating response"
+                              />
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
-                )}
-              </div>
-            ))}
-            {jobs
-              .filter((j) => j.status === "waiting")
-              .map((j) => (
+                );
+              })}
+            </div>
+            {history.hasNewer && (
+              <div className="history-edge">Scroll down for newer messages</div>
+            )}
+            {pendingInteractions(session, allJobs).map(
+              ({ job: j, pending }) => (
                 <div key={j.id} className="human-panel">
                   <p className="eyebrow">WAITING FOR YOU</p>
-                  {j.pending
-                    .filter((p: RecordData) => p._status === "parked")
-                    .map((p: RecordData) => (
-                      <HumanRequest
-                        key={p.call_id}
-                        job={j}
-                        pending={p}
-                        refresh={refreshJobs}
-                        onError={onError}
-                      />
-                    ))}
+                  {j.session_id !== session && (
+                    <Button onClick={() => open(j.session_id)}>
+                      Requested by a child execution · Open execution
+                    </Button>
+                  )}
+                  {pending.map((p: RecordData) => (
+                    <HumanRequest
+                      key={p._request_id || p.call_id}
+                      job={j}
+                      pending={p}
+                      refresh={refreshJobs}
+                      onError={onError}
+                    />
+                  ))}
                 </div>
-              ))}
+              ),
+            )}
           </div>
         </div>
         {showLatest && (
@@ -804,11 +899,11 @@ function Chat({
         jobs={allJobs}
         messages={messages}
         events={events}
+        timeline={timeline}
         onJump={(id) => {
           followLatest.current = false;
-          document
-            .getElementById(`trace-${id}`)
-            ?.scrollIntoView({ block: "center", behavior: "smooth" });
+          setShowLatest(true);
+          history.goToId(id);
         }}
       />
     </div>
@@ -849,7 +944,8 @@ function EventCard({
       <div className="error execution-error">
         <details>
           <summary>
-            Execution {e.type}. <span>Show details</span>
+            Execution {statusLabel(e.type).toLowerCase()}.{" "}
+            <span>Show details</span>
           </summary>
           <pre>
             {e.payload.error ||
@@ -877,7 +973,7 @@ function EventCard({
         className="execution-report"
         onClick={() => open(e.payload.session_id)}
       >
-        <span>↗</span>
+        <Logo className="execution-avatar" />
         <div>
           <strong>{e.payload.prompt?.slice(0, 90)}</strong>
           <small>
@@ -911,8 +1007,7 @@ function EventCard({
         />
       </div>
     );
-  if (e.type === "progress")
-    return <div className="progress">↳ {e.payload.text}</div>;
+  if (e.type === "progress") return null;
   return (
     <details className="tool-event">
       <summary>
@@ -921,15 +1016,23 @@ function EventCard({
         <span className="tool-meta">
           <UsageBadge callId={e.payload.model_call_id} />
           <DebugId id={String(e.id)} label="event" />
-          <span className="tool-result-label">
-            {e.type === "tool_begin"
-              ? "running"
-              : e.payload.result?.error
-                ? "error"
-                : e.payload.mode === "wait"
-                  ? "waiting"
-                  : "completed"}
-          </span>
+          {(e.payload.version_id || e.payload.result?.version_id) && (
+            <DebugId
+              id={e.payload.version_id || e.payload.result.version_id}
+              label="v"
+            />
+          )}
+          <Status
+            status={
+              e.type === "tool_begin"
+                ? "running"
+                : e.payload.result?.error || e.payload.result?.success === false
+                  ? "failed"
+                  : e.payload.mode === "wait"
+                    ? "waiting"
+                    : "completed"
+            }
+          />
         </span>
       </summary>
       <div className="tool-debug-ids">
@@ -943,86 +1046,32 @@ function EventCard({
           Event: <code>{e.id}</code>
         </span>
       </div>
-      <pre>
-        {JSON.stringify(
-          e.type === "tool_begin" ? e.payload.args : e.payload.result,
-          null,
-          2,
-        )}
-      </pre>
-    </details>
-  );
-}
-function HumanRequest({
-  job,
-  pending: p,
-  refresh,
-  onError,
-}: {
-  job: RecordData;
-  pending: RecordData;
-  refresh: () => void;
-  onError: (s: string) => void;
-}) {
-  const [answer, setAnswer] = useState(""),
-    [busy, setBusy] = useState(false);
-  const pua = p._result?.__pua__,
-    decided = !!p._decision;
-  async function decide(decision: string, text?: string) {
-    setBusy(true);
-    try {
-      await api(`/jobs/${job.id}/decisions/${p.call_id}`, "POST", {
-        decision,
-        result: { answer: text ?? answer },
-        reason: decision === "reject" ? answer : undefined,
-      });
-      refresh();
-    } catch (e: any) {
-      onError(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <div className="human-request">
-      <h3>{pua?.title || p.name}</h3>
-      <p>{pua?.message || p._result?.question}</p>
-      {decided ? (
-        <span className="status succeeded">Response saved</span>
-      ) : (
+      {e.type === "tool_end" &&
+      ["read", "write", "edit", "bash"].includes(e.payload.tool_name) &&
+      typeof e.payload.result?.content === "string" ? (
         <>
-          <Textarea
-            aria-label="Your response"
-            value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
-            placeholder="Your response…"
-          />
-          {pua?.payload?.choices?.map((c: string) => (
-            <Button
-              key={c}
-              onClick={() => decide("complete", c)}
-              disabled={busy}
-            >
-              {c}
-            </Button>
-          ))}
-          <div className="actions">
-            <Button
-              className="primary"
-              disabled={busy}
-              onClick={() =>
-                decide(pua?.payload?.preflight ? "approve" : "complete")
-              }
-            >
-              {pua?.payload?.preflight ? "Approve execution" : "Send response"}
-            </Button>
-            <Button disabled={busy} onClick={() => decide("reject")}>
-              Decline
-            </Button>
-          </div>
+          <pre>{e.payload.result.content}</pre>
+          {e.payload.result.diff && <pre>{e.payload.result.diff}</pre>}
+          {e.payload.result.error && (
+            <p className="error">{e.payload.result.error}</p>
+          )}
+          {e.payload.result.exit_code !== undefined && (
+            <small>
+              Exit {e.payload.result.exit_code} ·{" "}
+              {e.payload.result.wall_time_seconds ?? 0}s
+            </small>
+          )}
         </>
+      ) : (
+        <pre>
+          {JSON.stringify(
+            e.type === "tool_begin" ? e.payload.args : e.payload.result,
+            null,
+            2,
+          )}
+        </pre>
       )}
-    </div>
+    </details>
   );
 }
 createRoot(document.getElementById("root")!).render(

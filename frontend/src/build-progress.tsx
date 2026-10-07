@@ -1,10 +1,14 @@
+import { Status } from "./status";
+import { Logo } from "./components";
 import { useEffect, useState } from "react";
 import { api, type RecordData } from "./api";
-import { Button, Badge, DebugId } from "./components";
+import { Button, DebugId } from "./components";
 import { Spinner } from "./ui/spinner/spinner";
 import { UsageBadge } from "./usage";
 
 const terminal = new Set(["succeeded", "failed", "cancelled", "interrupted"]);
+// Paging a completed build back into view must not restart its loader/polling.
+const progressCache = new Map<string, RecordData>();
 const phases: Record<string, string> = {
   queued: "Waiting for the builder",
   planning: "Analyzing the skill and planning actions",
@@ -27,16 +31,27 @@ export function BuildProgress({
   event: RecordData;
   open: (id: string) => void;
 }) {
-  const [progress, setProgress] = useState<RecordData | null>(null);
-  const [error, setError] = useState("");
   const jobId = event.payload.job_id;
+  const [progress, setProgress] = useState<RecordData | null>(
+    () => progressCache.get(jobId) || null,
+  );
+  const [error, setError] = useState("");
   useEffect(() => {
+    const cached = progressCache.get(jobId);
+    if (cached && terminal.has(cached.status)) {
+      setProgress(cached);
+      return;
+    }
     let disposed = false;
     let timer: ReturnType<typeof setTimeout>;
     async function refresh() {
       let finished = false;
       try {
         const next = await api(`/jobs/${jobId}/build`);
+        progressCache.delete(jobId);
+        progressCache.set(jobId, next);
+        if (progressCache.size > 100)
+          progressCache.delete(progressCache.keys().next().value!);
         if (disposed) return;
         setProgress(next);
         setError("");
@@ -55,16 +70,6 @@ export function BuildProgress({
 
   const status = progress?.status || event.payload.status;
   const running = status === "running" && !progress?.control;
-  const variant =
-    status === "succeeded"
-      ? "ACTIVE"
-      : terminal.has(status)
-        ? "CRITICAL"
-        : ["paused", "waiting"].includes(status)
-          ? "WARNING"
-          : running
-            ? "SCANNING"
-            : "OFFLINE";
   let phase = progress
     ? phases[progress.phase] || progress.phase
     : "Loading build progress…";
@@ -80,7 +85,7 @@ export function BuildProgress({
         className="build-progress-header"
         onClick={() => open(progress?.session_id || event.payload.session_id)}
       >
-        <span aria-hidden="true">↗</span>
+        <Logo className="execution-avatar" />
         <strong>
           {progress
             ? `Build skill: ${progress.skill_name}`
@@ -89,9 +94,7 @@ export function BuildProgress({
         <span className="tool-meta">
           <UsageBadge jobId={jobId} />
           <DebugId id={jobId} />
-          <Badge variant={variant}>
-            {status === "succeeded" ? "completed" : status}
-          </Badge>
+          <Status status={status} />
         </span>
       </Button>
       <div className="build-progress-body">

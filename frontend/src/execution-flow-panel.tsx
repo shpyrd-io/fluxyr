@@ -1,3 +1,6 @@
+import { useHistoryWindow } from "./use-history-window";
+import type { TimelineItem } from "./timeline";
+import { SelectField, SelectOption } from "./form-select";
 import { useMemo, useEffect, useRef, useState } from "react";
 import {
   GitBranch,
@@ -11,8 +14,16 @@ import {
   Check,
   AlertCircle,
 } from "lucide-react";
-import { Button } from "./components";
-import { Spinner } from "./ui/spinner/spinner";
+import { Button, DebugId } from "./components";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+} from "./ui/card/card";
+import { Typography } from "./ui/typography/typography";
+import { Status } from "./status";
 import { executionFlow, type FlowNode } from "./execution-flow";
 import type { RecordData } from "./api";
 import { UsageBadge } from "./usage";
@@ -24,7 +35,7 @@ const labels: Record<string, string> = {
   human_request: "Ask human",
   human_response: "Human response",
   build: "Skill build",
-  error: "Error",
+  error: "Execution failed",
   execution: "Execution",
 };
 const icons: Record<string, typeof Wrench> = {
@@ -42,85 +53,104 @@ export function ExecutionFlowPanel({
   events,
   jobs,
   onJump,
+  timeline,
 }: {
+  timeline: TimelineItem[];
   messages: RecordData[];
   events: RecordData[];
   jobs: RecordData[];
   onJump: (id: string) => void;
 }) {
   const all = useMemo(
-    () => executionFlow(messages, events, jobs),
-    [messages, events, jobs],
+    () => executionFlow(messages, events, jobs, timeline),
+    [messages, events, jobs, timeline],
   );
   const [filter, setFilter] = useState("all"),
     [following, setFollowing] = useState(true);
   const scroll = useRef<HTMLDivElement>(null);
   const jobIds = [...new Set(all.map((n) => n.jobId).filter(Boolean))];
-  const nodes = filter === "all" ? all : all.filter((n) => n.jobId === filter);
+  const nodes = useMemo(
+    () => (filter === "all" ? all : all.filter((n) => n.jobId === filter)),
+    [all, filter],
+  );
+  const history = useHistoryWindow(nodes, scroll, () => following);
   useEffect(() => {
-    if (following && scroll.current)
-      scroll.current.scrollTop = scroll.current.scrollHeight;
-  }, [all, following, filter]);
+    if (following) history.goToLatest();
+  }, [following, history.goToLatest]);
   function renderNode(n: FlowNode) {
     const Icon = icons[n.kind] || Wrench;
     return (
-      <button
-        key={n.id}
-        className={`flow-node ${n.kind} ${n.status}`}
-        onClick={() => n.target && onJump(n.target)}
-        disabled={!n.target}
-        title={n.label}
-      >
-        <span className="flow-node-kind">
-          <Icon size={12} />
-          {labels[n.kind] || n.kind}
-          {n.status === "running" ? (
-            <Spinner size="SM" />
-          ) : ["error", "failed", "interrupted"].includes(n.status) ? (
-            <AlertCircle size={12} />
-          ) : ["completed", "succeeded"].includes(n.status) ? (
-            <Check size={11} />
-          ) : (
-            <small>{n.status}</small>
-          )}
-        </span>
-        <span className="flow-node-label">{n.label}</span>
-        <UsageBadge
-          callId={n.modelCallId}
-          jobId={["build", "execution"].includes(n.kind) ? n.jobId : undefined}
-        />
-      </button>
+      <Card key={n.id} className={`flow-node ${n.kind} ${n.status}`}>
+        <CardHeader className="flow-card-header">
+          <CardTitle className="flow-node-kind">
+            <Icon size={12} />
+            {labels[n.kind] || n.kind}
+          </CardTitle>
+          <Status status={n.status} />
+        </CardHeader>
+        <CardContent className="flow-card-content">
+          <button
+            type="button"
+            className="flow-node-link"
+            onClick={() => n.target && onJump(n.target)}
+            disabled={!n.target}
+            title={n.label}
+            aria-label={`${labels[n.kind] || n.kind}: ${n.label}`}
+          >
+            <span className="flow-node-label">{n.label}</span>
+          </button>
+          {n.versionId && <DebugId id={n.versionId} label="v" />}
+          <UsageBadge
+            callId={n.modelCallId}
+            jobId={
+              ["build", "execution"].includes(n.kind) ? n.jobId : undefined
+            }
+          />
+        </CardContent>
+      </Card>
     );
   }
   return (
-    <aside className="execution-flow" aria-label="Execution timeline">
+    <aside className="execution-flow" aria-label="Execution sequence">
       <header>
         <div>
           <GitBranch size={16} />
-          <h2>Execution timeline</h2>
+          <Typography variant="H4" as="h2">
+            Execution sequence
+          </Typography>
         </div>
         <p>Recorded events · live updates</p>
-        <select
+        <SelectField
           aria-label="Filter timeline by execution"
           value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+          onValueChange={(value) => {
+            setFilter(value);
+            setFollowing(true);
+          }}
         >
-          <option value="all">All executions</option>
+          <SelectOption value="all">All executions</SelectOption>
           {jobIds.map((id, i) => (
-            <option value={id} key={id}>
+            <SelectOption value={id} key={id}>
               Execution {i + 1} · {id.slice(0, 8)}
-            </option>
+            </SelectOption>
           ))}
-        </select>
+        </SelectField>
       </header>
       <div
         className="flow-scroll"
         ref={scroll}
         onScroll={() => {
           const el = scroll.current!;
-          setFollowing(el.scrollHeight - el.scrollTop - el.clientHeight < 50);
+          history.onScroll();
+          setFollowing(
+            !history.hasNewer &&
+              el.scrollHeight - el.scrollTop - el.clientHeight < 50,
+          );
         }}
       >
+        {history.hasOlder && (
+          <div className="history-edge">Scroll up for earlier events</div>
+        )}
         {!nodes.length ? (
           <div className="flow-empty">
             <GitBranch size={25} />
@@ -131,45 +161,66 @@ export function ExecutionFlowPanel({
           </div>
         ) : (
           <ol className="flow-path">
-            {nodes.map((n) => (
-              <li
-                key={n.id}
-                className={n.children ? "flow-parallel" : "flow-step"}
-              >
-                {n.children ? (
-                  <>
-                    <div className="flow-junction">
-                      <GitBranch size={12} />
-                      {n.children.length} parallel calls
-                      {n.inferred && (
-                        <span title="Reconstructed from overlapping tool start/end events">
-                          {" "}
-                          · observed
-                        </span>
-                      )}
-                    </div>
-                    <div className="flow-branches">
-                      {n.children.map(renderNode)}
-                    </div>
-                    <div className={`flow-junction join ${n.status}`}>
-                      {n.status === "completed" ? (
-                        <>
-                          <Check size={12} />
-                          Joined
-                        </>
-                      ) : n.status === "waiting" ? (
-                        "Waiting for input"
-                      ) : (
-                        "Waiting for branches"
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  renderNode(n)
-                )}
-              </li>
-            ))}
+            {history.items.map((n, index) => {
+              return (
+                <li
+                  key={n.id}
+                  data-history-id={n.id}
+                  data-index={history.start + index}
+                  aria-posinset={history.start + index + 1}
+                  aria-setsize={nodes.length}
+                  className={`${n.children ? "flow-parallel" : "flow-step"} ${history.start + index === nodes.length - 1 ? "flow-last" : ""}`}
+                >
+                  {n.children ? (
+                    <Card
+                      className="flow-batch"
+                      aria-label={`${n.children.length} parallel calls`}
+                    >
+                      <CardHeader className="flow-card-header">
+                        <CardTitle className="flow-node-kind">
+                          <GitBranch size={12} />
+                          {n.children.length} parallel calls
+                        </CardTitle>
+                        <Status status={n.status} />
+                        {n.inferred && (
+                          <span title="Reconstructed from overlapping tool start/end events">
+                            {" "}
+                            · observed
+                          </span>
+                        )}
+                      </CardHeader>
+                      <CardContent className="flow-batch-content">
+                        <div className="flow-branches">
+                          {n.children.map(renderNode)}
+                        </div>
+                      </CardContent>
+                      <CardFooter className={`flow-junction join ${n.status}`}>
+                        {n.status === "completed" ? (
+                          <>
+                            <Check size={12} />
+                            Joined
+                          </>
+                        ) : n.status === "waiting" ? (
+                          "Waiting for input"
+                        ) : n.status === "failed" ? (
+                          "Joined with failures"
+                        ) : n.status === "cancelled" ? (
+                          "Cancelled"
+                        ) : (
+                          "Waiting for branches"
+                        )}
+                      </CardFooter>
+                    </Card>
+                  ) : (
+                    renderNode(n)
+                  )}
+                </li>
+              );
+            })}
           </ol>
+        )}
+        {history.hasNewer && (
+          <div className="history-edge">Scroll down for newer events</div>
         )}
       </div>
       {!following && (

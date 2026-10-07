@@ -126,9 +126,7 @@ export function buildTimeline(
         items.push(item);
       }
     } else if (
-      ["progress", "preview", "execution_report", "build_started"].includes(
-        e.type,
-      )
+      ["preview", "execution_report", "build_started"].includes(e.type)
     ) {
       items.push({
         id: `event:${e.id}`,

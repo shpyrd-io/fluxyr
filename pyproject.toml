@@ -1,31 +1,45 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "fluxyr-agent"
-version = "0.1.0"
-description = "A self-hosted, single-agent workbench with durable local execution"
+name = "fluxyr"
+dynamic = ["version"]
+description = "A Flask-compatible framework for local agents with durable execution"
+readme = "README.md"
+license = "MPL-2.0"
+license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.11"
 dependencies = [
   "Flask>=3.0,<4", "SQLAlchemy>=2.0,<3", "psycopg2-binary>=2.9,<3",
   "anthropic>=0.109,<1", "openai>=2.36,<3", "cryptography>=46,<47",
   "croniter>=3,<7", "httpx>=0.27,<1", "requests>=2.32,<3", "certifi",
   "selectolax>=0.3.21,<1", "markdownify>=0.13", "pydantic>=2.7,<3",
-  "PyYAML>=6", "jsonschema>=4.23,<5", "python-dotenv>=1,<2", "packaging>=24", "waitress>=3,<4"
+  "PyYAML>=6", "jsonschema>=4.23,<5", "python-dotenv>=1,<2", "packaging>=24", "waitress>=3,<4", "Pillow>=11,<13"
 ]
+
+[project.urls]
+Homepage = "https://github.com/shpyrd-io/fluxyr"
+Documentation = "https://github.com/shpyrd-io/fluxyr/tree/main/docs"
+Repository = "https://github.com/shpyrd-io/fluxyr"
+Issues = "https://github.com/shpyrd-io/fluxyr/issues"
+Changelog = "https://github.com/shpyrd-io/fluxyr/blob/main/CHANGELOG.md"
+
+[tool.setuptools.dynamic]
+version = {attr = "fluxyr._version.__version__"}
 
 [project.optional-dependencies]
 test = ["pytest>=7.4,<9"]
+dev = ["pytest>=7.4,<9", "build>=1,<2", "ruff>=0.9"]
 
 [project.scripts]
-fluxyr-agent = "fluxyr_agent.__main__:main"
+fluxyr = "fluxyr.__main__:main"
 
 [tool.setuptools.packages.find]
-include = ["fluxyr_agent*"]
+include = ["fluxyr*"]
 
 [tool.setuptools.package-data]
-fluxyr_agent = ["prompts/*.md", "static/**/*"]
+fluxyr = ["prompts/*.md", "static/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

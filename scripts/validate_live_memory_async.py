@@ -10,9 +10,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text, select, func
 from sqlalchemy.engine import make_url
-from fluxyr_agent.config import Settings
-from fluxyr_agent.engine import Engine
-from fluxyr_agent.models import Job, Session, MemoryTask, Event, Message
+from fluxyr.config import Settings
+from fluxyr.engine import Engine
+from fluxyr.models import Job, Session, MemoryTask, Event, Message
 
 
 def wait_for(fn, seconds=180):

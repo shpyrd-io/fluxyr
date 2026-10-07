@@ -18,14 +18,14 @@
   --text-glow-green: none;
   --text-glow-red: none;
   --success: #88c9b6;
-  --font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: var(--font-mono);
   color-scheme: dark;
 }
 * {
   box-sizing: border-box;
 }
 body {
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.6;
 }
@@ -33,7 +33,7 @@ button,
 input,
 textarea,
 select {
-  font: inherit;
+  font-family: var(--font-mono);
 }
 button {
   cursor: pointer;
@@ -55,25 +55,23 @@ a:hover {
   background: #756ce05c;
   color: #fff;
 }
-h1,
-h2,
-h3 {
-  font-family: var(--font-sans);
+:where(h1, h2, h3) {
+  font-family: var(--font-mono);
   color: var(--text-secondary);
-  letter-spacing: -0.035em;
+  letter-spacing: 0.05em;
   line-height: 1.3;
 }
-h1 {
+:where(h1) {
   font-size: 27px;
   font-weight: 500;
   margin: 0 0 8px;
 }
-h2 {
+:where(h2) {
   font-size: 17px;
   font-weight: 500;
   margin: 0 0 12px;
 }
-h3 {
+:where(h3) {
   font-size: 15px;
   font-weight: 500;
 }
@@ -209,10 +207,11 @@ details {
   color: var(--text-secondary);
   margin-bottom: 29px;
 }
-.instance small {
-  margin-left: auto;
-  color: var(--text-muted);
-  font-size: 10px;
+.instance-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .dot {
   display: inline-block;
@@ -244,7 +243,7 @@ nav .fluxyr-button {
   padding: 0 12px;
   color: #969fb7;
   gap: 13px;
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
   font-size: 12px;
   position: relative;
 }
@@ -517,7 +516,7 @@ main {
   padding: 13px 16px;
   justify-content: space-between;
   text-align: left;
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
   font-size: 12px;
   color: #b6bed3;
 }
@@ -1028,7 +1027,7 @@ details.reasoning {
   color: var(--text-muted);
 }
 label > div,
-label > select {
+label > .form-select {
   margin-top: 8px;
 }
 select {
@@ -1655,7 +1654,7 @@ textarea::placeholder {
 .tool-search-field input {
   padding-left: 35px !important;
 }
-.tool-toolbar select {
+.tool-toolbar .form-select {
   width: 210px;
   height: 36px;
   padding: 0 11px;
@@ -1845,7 +1844,7 @@ textarea::placeholder {
     flex-basis: 100%;
     max-width: none;
   }
-  .tool-toolbar select {
+  .tool-toolbar .form-select {
     width: auto;
     flex: 1;
   }
@@ -1965,7 +1964,7 @@ textarea::placeholder {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
   margin-top: 3px;
 }
 .catalogue-meta,
@@ -2045,6 +2044,9 @@ textarea::placeholder {
   flex-direction: row;
   align-items: center;
 }
+.check-field > div {
+  margin-top: 0;
+}
 .resource-form .check-field input {
   width: auto;
 }
@@ -2122,7 +2124,7 @@ textarea::placeholder {
   font: 10px var(--font-mono);
   margin: 8px 0 12px;
 }
-.execution-flow select {
+.execution-flow .form-select {
   width: 100%;
   font-size: 10px;
 }
@@ -2152,7 +2154,7 @@ textarea::placeholder {
   bottom: 0;
   border-left: 1px solid #46506b;
 }
-.flow-path > li:last-child::after {
+.flow-path > .flow-last::after {
   display: none;
 }
 .flow-node {
@@ -2161,8 +2163,8 @@ textarea::placeholder {
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text-secondary);
-  padding: 9px 10px;
-  border-radius: 5px;
+  padding: 0;
+  border-radius: 0;
   text-align: left;
   min-width: 0;
   margin: 0;
@@ -2300,7 +2302,8 @@ textarea::placeholder {
     overflow: auto;
   }
   .chat-workspace .chat {
-    min-height: 650px;
+    min-height: 800px;
+    height: calc(100dvh - 64px);
     flex: none;
   }
   .execution-flow {
@@ -2339,7 +2342,7 @@ textarea::placeholder {
     max-width: 210px;
   }
 }
-.catalogue-toolbar > select {
+.catalogue-toolbar > .form-select {
   width: 210px;
   flex: 0 0 210px;
 }
@@ -2356,7 +2359,7 @@ textarea::placeholder {
   max-width: 490px;
 }
 @media (max-width: 760px) {
-  .catalogue-toolbar > select {
+  .catalogue-toolbar > .form-select {
     width: 100%;
     flex-basis: 100%;
   }
@@ -2596,3 +2599,222 @@ textarea::placeholder {
   font-size: 10px;
   overflow-wrap: anywhere;
 }
+
+.human-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.human-heading h3 {
+  margin: 0;
+}
+.human-heading span {
+  font: 11px var(--font-mono);
+  color: var(--text-secondary);
+}
+.human-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.human-choice {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.human-choice button {
+  width: 100%;
+  white-space: normal;
+  height: auto;
+  min-height: 36px;
+  margin-top: auto;
+}
+.human-choice iframe {
+  width: 100%;
+  height: 200px;
+  border: 1px solid var(--border);
+  background: white;
+}
+.human-choice img {
+  max-width: 100%;
+  height: 180px;
+  object-fit: contain;
+}
+.human-choice-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 220px;
+  overflow: auto;
+}
+.human-choice a {
+  font-size: 12px;
+  color: var(--accent);
+}
+
+/* Component-level layout only: Scificn owns the form and surface styling. */
+label input,
+label textarea,
+label [role="combobox"],
+label [role="option"] {
+  text-transform: none;
+  letter-spacing: normal;
+}
+label > .form-select {
+  margin-top: 8px;
+}
+.form-select {
+  min-width: 0;
+  text-align: left;
+}
+.form-select > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.resource-form label {
+  font-size: 0.7rem;
+}
+input[type="file"] {
+  padding-block: 6px !important;
+  height: auto;
+}
+input[type="file"]::file-selector-button {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font: inherit;
+  padding: 4px 8px;
+  margin-right: 10px;
+  cursor: pointer;
+}
+.cron-weekdays {
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.cron-weekdays label {
+  margin: 0;
+}
+.resource-form [role="switch"],
+.resource-form [role="checkbox"] {
+  flex-shrink: 0;
+}
+.status.failed,
+.status.interrupted {
+  color: var(--color-red);
+  border-color: var(--color-red);
+}
+.status.completed,
+.status.succeeded {
+  color: var(--success);
+  border-color: var(--success);
+}
+.status.cancelled {
+  color: var(--text-muted);
+}
+.execution-avatar {
+  width: 27px;
+  height: 27px;
+  flex-shrink: 0;
+  background: var(--brand);
+  padding: 5px;
+  border-radius: 7px;
+}
+.execution-avatar img {
+  filter: brightness(0) invert(1);
+}
+.flow-card-header {
+  padding: 10px;
+  gap: 8px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+.flow-node-kind {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 500;
+  color: var(--brand-soft);
+}
+.flow-node-kind > :last-child {
+  margin-left: 0;
+}
+.flow-card-content {
+  padding: 10px;
+}
+.flow-node-link {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: inherit;
+}
+.flow-node-link:disabled {
+  cursor: default;
+}
+.flow-node-label {
+  margin-top: 0;
+}
+.flow-node .status {
+  font-size: 8px;
+}
+.flow-node.error .flow-node-kind,
+.flow-node.failed .flow-node-kind {
+  color: var(--color-red);
+}
+.flow-node.reasoning {
+  border-style: solid;
+}
+.flow-node-link:focus-visible {
+  outline-offset: 4px;
+}
+.runtime-panel {
+  margin-bottom: 12px;
+}
+.execution-log-output {
+  max-height: 60vh;
+}
+.breadcrumb ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.breadcrumb li {
+  min-width: 0;
+}
+.session-actions {
+  flex-wrap: wrap;
+}
+
+.page-title h1, .chat-title h1 { color: var(--color-green); letter-spacing: .12em; font-weight: 700; }
+
+.chat-breadcrumb { margin-bottom: 12px; }
+.chat-breadcrumb ol { font-size: 11px; }
+.flow-batch { min-width: 0; border-color: var(--brand); }
+.flow-batch-content { padding: 12px 8px; }
+.flow-batch .flow-junction { padding: 8px; }
+.flow-junction.join.failed { color: var(--color-red); }
+
+.vault-form fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 1rem; }
+.vault-request .human-heading h3 { display: flex; align-items: center; gap: .5rem; }
+.vault-request .vault-form { margin-top: 1rem; }
+.vault-form small { text-transform: none; letter-spacing: normal; }
+@media (min-width: 640px) {
+  .vault-form .vault-oauth-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .vault-oauth-fields .vault-wide { grid-column: 1 / -1; }
+}
+
+/* Keep only the visible history mounted, while retaining measured scroll space. */
+.history-row { display: flow-root; }
+.history-edge { font-size: 11px; color: var(--muted); text-align: center; padding: 6px 0; }
+.conversation { overflow-anchor: none; }
+.flow-scroll { overflow-anchor: none; }

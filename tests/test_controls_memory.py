@@ -6,11 +6,11 @@ import pytest
 from sqlalchemy import select
 
 from conftest import execute_next, ScriptedAdapter
-from fluxyr_agent.database import MAIN_SESSION
-from fluxyr_agent.models import Job, Session, Message, ToolVersion
-from fluxyr_agent.core.brain import SyntheticBrain
-from fluxyr_agent.core.brain_tool_executor import execute_tool
-from fluxyr_agent.tools.registry import Registry
+from fluxyr.database import MAIN_SESSION
+from fluxyr.models import Job, Session, Message, ToolVersion
+from fluxyr.core.brain import SyntheticBrain
+from fluxyr.core.brain_tool_executor import execute_tool
+from fluxyr.tools.registry import Registry
 
 
 @pytest.mark.parametrize(
@@ -101,7 +101,7 @@ def test_memory_reads_do_not_mutate_and_restored_memories_are_in_prompt():
     )
     assert result.result["semantic"]["wallet"] == "R$ 127,43"
     assert restored._semantic.to_dict() == before
-    from fluxyr_agent.core.brain_prompt import build_enhanced_prompt
+    from fluxyr.core.brain_prompt import build_enhanced_prompt
 
     assert "wallet: R$ 127,43" in build_enhanced_prompt(
         "System", restored._memory_manager
@@ -153,19 +153,18 @@ def test_python_handler_captures_traceback_and_model_cannot_override_failure(mak
         skill["id"],
         "failure",
         "failure",
-        'from fluxyr import output\noutput({"looks": "successful"})\nraise ValueError("real failure after output")',
-        {"type": "object", "properties": {}},
+        'from fluxyr import output, params\noutput({"looks": "successful"})\nif params.get("fail"):\n raise ValueError("real failure after output")',
+        {"type": "object", "properties": {"fail": {"type": "boolean"}}},
     )
-    failed = e.skills.test(version["id"], {})
+    failed = e.skills.test(version["id"], {"fail": True})
     assert failed["done"] and not failed["success"] and not failed["passed"]
     assert "ValueError: real failure after output" in failed["error"]
     # A formerly working version can fail against a real service/input later.
-    with e.db.transaction() as s:
-        s.get(ToolVersion, version["id"]).state = "tested"
+    assert e.skills.test(version["id"], {"fail": False})["passed"]
     e.skills.activate(version["id"])
     routine = e.routines.put({"name": "failure", "prompt": "Run failing action"})
     adapter.replies = [
-        [("action_failure", {})],
+        [("action_failure", {"fail": True})],
         [
             (
                 "finish_execution",

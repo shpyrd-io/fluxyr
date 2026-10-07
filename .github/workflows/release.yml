@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to verify and publish (for example v0.1.0)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+      - name: Verify the tag matches the package version and belongs to main
+        id: version
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          python scripts/check_release.py --tag "$RELEASE_TAG"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
+          git merge-base --is-ancestor HEAD origin/main
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+  # Reusable workflows use the caller's commit for tag pushes. Manual retries
+  # must also be dispatched against that same tag, not the default branch.
+  verify-ref:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require manual dispatch from the requested tag
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          REQUESTED: ${{ inputs.tag }}
+          ACTUAL: ${{ github.ref }}
+        run: test "$ACTUAL" = "refs/tags/$REQUESTED"
+  checks:
+    needs: [version, verify-ref]
+    uses: ./.github/workflows/ci.yml
+  github:
+    needs: [version, checks]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: distributions
+          path: dist
+      - name: Publish GitHub release and distributions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.version.outputs.tag }}
+        shell: bash
+        run: |
+          cd dist
+          sha256sum *.whl *.tar.gz > SHA256SUMS
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --verify-tag --generate-notes --title "Fluxyr $RELEASE_TAG"
+          fi
+          gh release upload "$RELEASE_TAG" ./* --clobber
+  pypi:
+    needs: [version, checks, github]
+    if: vars.PYPI_PUBLISH == 'true'
+    runs-on: ubuntu-24.04
+    environment:
+      name: pypi
+      url: https://pypi.org/project/fluxyr/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: distributions
+          path: dist
+      - name: Publish with PyPI Trusted Publishing
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          skip-existing: true

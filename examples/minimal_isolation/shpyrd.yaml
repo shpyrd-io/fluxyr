@@ -1,0 +1,9 @@
+project: fluxyr-minimal-isolation
+build:
+  strategy: dockerfile
+  target: runtime
+processes:
+  web:
+    volumes:
+      - name: data
+        path: /var/lib/fluxyr/data

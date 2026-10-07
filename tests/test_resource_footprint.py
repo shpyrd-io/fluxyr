@@ -2,9 +2,9 @@
 
 from sqlalchemy import event
 
-from fluxyr_agent.models import Job
-from fluxyr_agent.database import MAIN_SESSION
-from fluxyr_agent.usage import usage_report
+from fluxyr.models import Job
+from fluxyr.database import MAIN_SESSION
+from fluxyr.usage import usage_report
 
 
 def test_public_job_lists_preserve_pending_without_loading_context(make_app):

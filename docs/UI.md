@@ -1,9 +1,34 @@
 # Fluxyr interface
 
-The frontend vendors the actual Scificn Button, Badge, Panel, Input, Textarea,
+The frontend vendors the actual Scificn Button, Badge, Panel, Card, Input, Textarea,
+Label, Select, Checkbox, Switch, Separator, StatusGrid, Typography, Breadcrumb,
 Dialog and ASCII Spinner components from https://www.scificn.dev/r. Registry
 hashes and the source theme revision are in `frontend/src/ui/scificn-source.json`;
 local adaptations are described in NOTICE.
+
+## Component consistency review
+
+The workflow uses Card/Header/Title/Content for each persisted node, preserving
+fork/join connectors and navigation back to the conversation. Forms and filters
+use Radix-backed Scificn Select, labels, checkboxes and switches; inputs and
+textareas keep their original Scificn primitives. IBM Plex Mono is hosted locally
+and used throughout the interface. Breadcrumb and the local worker/jobs StatusGrid
+use the upstream components. Fluxyr's purple palette and supplied logo are retained.
+
+All execution/tool failure badges use the shared Status component: `error` and
+`failed` both display **Failed** in red; `succeeded` and `completed` display
+**Completed**. Backend state values remain unchanged. Runtime stdout and dependency
+installation events stay persisted but no longer become conversation entries.
+They are available under **Diagnostics**, with execution and call IDs. Tool details
+still expose structured results; execution/build links use the Fluxyr avatar.
+
+Browser validation covered dropdown keyboard selection, weekly cron checkboxes,
+enable-switch state, cancellation without saving, PEM upload/text fields, and
+the existing failed event 17474. Its badge computed color is #ef909a; the timeline
+has no horizontal overflow at the inspected desktop size. Diagnostics shows the
+original runner logs while the conversation contains no inline progress logs.
+19 frontend tests and the production TypeScript/Vite build passed. No new model
+calls or changes to production resources were made for this UI validation.
 
 Fluxyr overrides the library tokens in `frontend/src/style.css`, using the supplied
 `assets/symbol.svg` and `assets/logo-text.svg`. The symbol is white on #756ce0
@@ -179,3 +204,13 @@ to the workbench. This uses a separate schema and workspace. Evidence:
 ## Routine schedule editor
 
 Routine editing supports manual, minute intervals, hourly, daily, weekly, and monthly schedules. The visual controls translate to cron and recognize equivalent common expressions; advanced expressions are preserved verbatim. A read-only preview computes the next three occurrences with the scheduler's timezone rules. Changes, including weekday and enable checkboxes, remain drafts until Save routine; Cancel discards them. Verified in the browser by changing weekdays and enabled state, cancelling, and reopening the original manual routine. Frontend round-trip tests and PostgreSQL preview tests cover custom expressions, invalid schedules, timezones, month boundaries, and DST. The model header displays only the dollar amount, with $0.00 when unavailable.
+
+The workbench's `01 > Agent console` session heading uses the vendored Scificn Breadcrumb, alongside the toolbar breadcrumb. Explicit parallel batches render inside a Scificn Card containing branch cards and a join footer; failures propagate to the enclosing batch status. Per-call version IDs appear in both chat tool cards and the graph. Rendering comes from durable batch/tool events, so reopening the session retains grouping. Sequential historical batches are not relabelled parallel. Verified in the browser against the real MiniMax probe; no horizontal overflow in the graph or batch card. Regression checks: 20 frontend tests, production build, 26 focused PostgreSQL backend tests.
+
+## Long conversation rendering
+
+The conversation and execution sequence start with the latest 30 blocks. Scrolling upward within 160 px of the loaded top prepends another 30; scrolling toward the loaded bottom restores newer blocks when needed. The opposite edge is evicted in whole pages to keep at most 90 blocks mounted. The visible row and its pixel offset are retained across page changes. Ordinary scrolling within a page does not mount/unmount rows or restart loaders. Completed build progress is cached (up to 100 jobs) so returning to it does not restart polling.
+
+Graph links can bring an unmounted message into the window; Latest returns to the most recent page. Pending human/Vault forms remain mounted outside the paged history. This only changes rendering, not database history or model context. Raw events still arrive through the existing stream and remain in browser memory; server-side history pagination is separate work.
+
+Verified against an existing 102-block conversation and 107-node sequence: initial pages contain 30 blocks, crossing the upper threshold grows to 60 and 90, and navigating farther back evicts the opposite edge without exceeding 90. Small scrolls in the middle do not change the page. Measured the same graph card before/after prepending: it moved only by the requested wheel distance. Frontend regression tests cover thresholds, direction, overlap and traversing 10,000 items in both directions.

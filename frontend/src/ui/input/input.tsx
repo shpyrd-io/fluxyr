@@ -1,5 +1,6 @@
 // Adapted from https://www.scificn.dev/r/input.json (2026-10-07).
 import * as React from "react";
+import { Label } from "../label/label";
 import { cn } from "@/lib/utils";
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -10,7 +11,8 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, label, error, prefix, id, style, ...props }, ref) => {
-    const inputId = id ?? label?.toLowerCase().replace(/\s+/g, "-");
+    const generatedId = React.useId();
+    const inputId = id ?? generatedId;
 
     return (
       <div
@@ -22,7 +24,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         }}
       >
         {label && (
-          <label
+          <Label
             htmlFor={inputId}
             style={{
               fontSize: "0.65rem",
@@ -32,7 +34,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             }}
           >
             {label}
-          </label>
+          </Label>
         )}
 
         <div

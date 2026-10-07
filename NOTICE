@@ -1,3 +1,9 @@
+Fluxyr Agent source is governed by the Mozilla Public License, v. 2.0.
+This Source Code Form is subject to the terms of the Mozilla Public License,
+v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain
+one at https://mozilla.org/MPL/2.0/.
+Third-party components retain their respective licenses and notices.
+
 Fluxyr Agent includes code extracted and adapted from Fluxyr (fluxyr-work2),
 commit 019eceb0b82ccc955280671a6813ba602cc70c0a, at the owner's request.
 Preserved modules include SyntheticBrain, model adapters, tool batch policies,
@@ -5,8 +11,17 @@ human decision gate, web content extraction, TechDoc and vault encryption.
 
 The frontend incorporates and adapts Scificn UI components published for
 copy-paste integration at https://www.scificn.dev/ by baxy5:
-Button, Badge, Panel, Input, Textarea, Dialog and Spinner. Retrieved 2026-10-07.
+Button, Badge, Panel, Card, Input, Textarea, Label, Select, Checkbox, Switch,
+Separator, StatusGrid, Typography, Breadcrumb, Dialog and Spinner.
+Retrieved 2026-10-07.
 Theme source revision: 8b06737dcfbf38c55236b7a6b77f15070c5bb3fd.
 Registry file digests are recorded in frontend/src/ui/scificn-source.json.
 Local adaptations include Fluxyr design tokens, locally hosted fonts,
-accessible dialog close labeling and the branded rounded symbol.
+accessible dialog close labeling, unique form-control IDs, Scificn Label usage,
+bounded dropdown height, corrected Switch state-label selectors and the branded
+rounded symbol. Application adapters preserve empty/numeric select values and
+share execution status labels without changing backend states.
+
+Bundled IBM Plex Mono and Inter fonts are distributed under the SIL Open Font
+License 1.1. Their copyright and license texts are in frontend/public/licenses
+and included in the packaged UI.

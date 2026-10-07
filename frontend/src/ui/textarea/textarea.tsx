@@ -1,5 +1,6 @@
 // Adapted from https://www.scificn.dev/r/textarea.json (2026-10-07).
 import * as React from "react";
+import { Label } from "../label/label";
 import { cn } from "@/lib/utils";
 
 export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -9,7 +10,8 @@ export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextArea
 
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ className, label, error, id, style, ...props }, ref) => {
-    const textareaId = id ?? label?.toLowerCase().replace(/\s+/g, "-");
+    const generatedId = React.useId();
+    const textareaId = id ?? generatedId;
 
     return (
       <div
@@ -21,7 +23,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         }}
       >
         {label && (
-          <label
+          <Label
             htmlFor={textareaId}
             style={{
               fontSize: "0.65rem",
@@ -31,7 +33,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
             }}
           >
             {label}
-          </label>
+          </Label>
         )}
 
         <textarea

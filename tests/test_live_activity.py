@@ -2,8 +2,8 @@ import json
 
 from conftest import execute_next
 
-from fluxyr_agent.activity import ActivityEmitter
-from fluxyr_agent.streaming import StreamRecorder
+from fluxyr.activity import ActivityEmitter
+from fluxyr.streaming import StreamRecorder
 
 
 def test_argument_activity_is_counted_without_persisting_contents(make_app):

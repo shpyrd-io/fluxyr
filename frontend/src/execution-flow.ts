@@ -10,16 +10,19 @@ export type FlowNode = {
   children?: FlowNode[];
   inferred?: boolean;
   modelCallId?: string;
+  versionId?: string;
 };
 const terminal = new Set(["succeeded", "failed", "cancelled", "interrupted"]);
 export function executionFlow(
   messages: RecordData[],
   events: RecordData[],
   jobs: RecordData[] = [],
+  timeline?: TimelineItem[],
 ): FlowNode[] {
   const ordered = [...new Map(events.map((e) => [e.id, e])).values()].sort(
     (a, b) => a.id - b.id,
   );
+  timeline ??= buildTimeline(messages, ordered);
   const groups = new Map<string, { ids: string[]; inferred: boolean }>(),
     membership = new Map<string, string>();
   const legacy = new Map<
@@ -79,16 +82,25 @@ export function executionFlow(
         jobId: item.jobId,
         kind: p.tool_name === "ask_human" ? "human_request" : "tool",
         label: p.tool_name || "Tool call",
+        versionId: p.version_id || p.result?.version_id,
         modelCallId: p.model_call_id,
-        status: p.result?.error
-          ? "error"
-          : p.mode === "wait"
-            ? answered.has(item.id)
-              ? "completed"
-              : "waiting"
-            : item.event!.type === "tool_end"
-              ? "completed"
-              : status.get(item.jobId) || "running",
+        status:
+          p.result?.error || p.result?.success === false
+            ? "error"
+            : p.mode === "wait"
+              ? p.result?.__human__
+                ? current.get(item.jobId) === "waiting" ||
+                  !current.has(item.jobId)
+                  ? "waiting"
+                  : terminal.has(current.get(item.jobId)!)
+                    ? current.get(item.jobId)!
+                    : "running"
+                : answered.has(item.id)
+                  ? "completed"
+                  : "waiting"
+              : item.event!.type === "tool_end"
+                ? "completed"
+                : status.get(item.jobId) || "running",
         target: item.id,
       };
     if (item.event!.type === "build_started")
@@ -120,7 +132,6 @@ export function executionFlow(
       };
     return null;
   }
-  const timeline = buildTimeline(messages, ordered);
   const decisions = ordered
     .filter((e) => e.type === "decision")
     .map((e) => ({
@@ -179,7 +190,13 @@ export function executionFlow(
       kind: "parallel",
       label: "Parallel tools",
       status: settled
-        ? "completed"
+        ? children.some((c) =>
+            ["error", "failed", "interrupted"].includes(c.status),
+          )
+          ? "failed"
+          : children.some((c) => c.status === "cancelled")
+            ? "cancelled"
+            : "completed"
         : children.some((c) => c.status === "waiting")
           ? "waiting"
           : "running",
