@@ -531,6 +531,8 @@ class Engine:
             row.lease_until = None
             session = s.get(Session, row.session_id, with_for_update=True)
             self.store.sync_session(s, session)
+            if status == "cancelled":
+                self.store.retain_cancelled_context(session, row)
             if (
                 status in ("succeeded", "failed")
                 and state

@@ -5,6 +5,7 @@ import time
 
 from sqlalchemy import exists, select, update
 
+from .cancelled_context import cancelled_context
 from .database import MAIN_SESSION, row_dict
 from .models import Decision, Event, Job, Message, Session, Skill, Tool, ToolVersion
 from .persistence import bounded, event_payload, restore_tool_identity
@@ -276,6 +277,7 @@ class Store:
                     job.status = "paused" if action == "pause" else "cancelled"
                     if action == "cancel":
                         job.finished_at = time.time()
+                        self.retain_cancelled_context(session, job)
             else:
                 raise ValueError("Unknown control action")
             if action in ("pause", "cancel", "resume"):
@@ -297,12 +299,22 @@ class Store:
                                 )
                                 if action == "cancel":
                                     child.finished_at = time.time()
-                        self.sync_session(
-                            s, s.get(Session, child.session_id, with_for_update=True)
+                        child_session = s.get(
+                            Session, child.session_id, with_for_update=True
                         )
+                        if child.status == "cancelled":
+                            self.retain_cancelled_context(child_session, child)
+                        self.sync_session(s, child_session)
             s.flush()
             self.sync_session(s, session)
             return row_dict(job)
+
+    def retain_cancelled_context(self, session, job):
+        # An unstarted queued job only has inherited context, never new history.
+        if job.input.get("started"):
+            state = cancelled_context(job.brain)
+            if state:
+                session.brain = state
 
     def sync_session(self, s, session):
         s.flush()

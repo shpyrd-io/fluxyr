@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Preserve acquired conversation context when cancelling a job, without resuming cancelled tools or forms.
 - Prefill public OAuth settings in private credential forms for creation and editing.
 - Expose human-question and choice-label limits in tool schemas and agent instructions.
 - Keep embedded credential forms inside their interaction card and adapt columns to available width.
