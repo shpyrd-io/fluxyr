@@ -1,7 +1,7 @@
 FROM node:22-alpine AS web
 WORKDIR /web
 RUN npm install -g pnpm@11.19.0
-COPY frontend/package.json frontend/pnpm-lock.yaml ./
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY frontend/ ./
 RUN pnpm build

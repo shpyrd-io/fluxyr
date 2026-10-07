@@ -2,7 +2,7 @@ include LICENSE NOTICE README.md pyproject.toml
 recursive-include fluxyr/prompts *.md
 recursive-include fluxyr/static *
 recursive-include frontend/src *.ts *.tsx *.css *.json
-include frontend/package.json frontend/pnpm-lock.yaml frontend/index.html frontend/tsconfig.json frontend/vite.config.ts
+include frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml frontend/index.html frontend/tsconfig.json frontend/vite.config.ts
 recursive-include frontend/public *
 recursive-include examples *.py *.md .env.example
 recursive-include examples Dockerfile *.yaml .dockerignore .gitignore

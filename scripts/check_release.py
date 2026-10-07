@@ -77,6 +77,7 @@ def main():
                 "fluxyr/_version.py",
                 "fluxyr/static/index.html",
                 "frontend/pnpm-lock.yaml",
+                "frontend/pnpm-workspace.yaml",
                 "LICENSE",
                 "NOTICE",
             ):
