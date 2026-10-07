@@ -1,0 +1,12 @@
+Fluxyr Agent includes code extracted and adapted from Fluxyr (fluxyr-work2),
+commit 019eceb0b82ccc955280671a6813ba602cc70c0a, at the owner's request.
+Preserved modules include SyntheticBrain, model adapters, tool batch policies,
+human decision gate, web content extraction, TechDoc and vault encryption.
+
+The frontend incorporates and adapts Scificn UI components published for
+copy-paste integration at https://www.scificn.dev/ by baxy5:
+Button, Badge, Panel, Input, Textarea, Dialog and Spinner. Retrieved 2026-10-07.
+Theme source revision: 8b06737dcfbf38c55236b7a6b77f15070c5bb3fd.
+Registry file digests are recorded in frontend/src/ui/scificn-source.json.
+Local adaptations include Fluxyr design tokens, locally hosted fonts,
+accessible dialog close labeling and the branded rounded symbol.

@@ -1,0 +1,13 @@
+.git
+.venv
+.env
+.runtime
+data
+workspace
+**/__pycache__
+.pytest_cache
+frontend/node_modules
+fluxyr_agent/static
+*.egg-info
+.pnpm-store
+test-results

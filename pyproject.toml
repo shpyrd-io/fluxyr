@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fluxyr-agent"
+version = "0.1.0"
+description = "A self-hosted, single-agent workbench with durable local execution"
+requires-python = ">=3.11"
+dependencies = [
+  "Flask>=3.0,<4", "SQLAlchemy>=2.0,<3", "psycopg2-binary>=2.9,<3",
+  "anthropic>=0.109,<1", "openai>=2.36,<3", "cryptography>=46,<47",
+  "croniter>=3,<7", "httpx>=0.27,<1", "requests>=2.32,<3", "certifi",
+  "selectolax>=0.3.21,<1", "markdownify>=0.13", "pydantic>=2.7,<3",
+  "PyYAML>=6", "jsonschema>=4.23,<5", "python-dotenv>=1,<2", "packaging>=24", "waitress>=3,<4"
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7.4,<9"]
+
+[project.scripts]
+fluxyr-agent = "fluxyr_agent.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["fluxyr_agent*"]
+
+[tool.setuptools.package-data]
+fluxyr_agent = ["prompts/*.md", "static/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: fluxyr
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fluxyr}
+      POSTGRES_DB: fluxyr_agent
+    volumes:
+      - postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fluxyr -d fluxyr_agent"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    restart: unless-stopped
+  agent:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg2://fluxyr:${POSTGRES_PASSWORD:-fluxyr}@postgres:5432/fluxyr_agent
+      FLUXYR_PROVIDER: ${FLUXYR_PROVIDER:-anthropic}
+      FLUXYR_MODEL: ${FLUXYR_MODEL:-claude-sonnet-4-6}
+      FLUXYR_WORKERS: ${FLUXYR_WORKERS:-4}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      VAULT_ENCRYPTION_KEY: ${VAULT_ENCRYPTION_KEY:-}
+    ports:
+      - "${FLUXYR_BIND:-127.0.0.1}:5050:5050"
+    volumes:
+      - agent:/var/lib/fluxyr
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 180s
+volumes:
+  postgres:
+  agent:

@@ -1,0 +1,14 @@
+{
+  "source": "https://www.scificn.dev/r",
+  "theme_revision": "8b06737dcfbf38c55236b7a6b77f15070c5bb3fd",
+  "retrieved": "2026-10-07",
+  "registry_sha256": {
+    "button": "9941b313c49e18cba4f2819305df91489537717fbada5531f8127ebabaad52be",
+    "panel": "75c3491ae8e9ae4d762a1ae6e665f259da94069d3fd213bef2a5e68b3678219e",
+    "badge": "d7afe4b3caf68b7d491bfc9168a0301b92a7c65d873b67d9c7a16419a0945b3b",
+    "input": "16ea98ef6e92744707b9055c516a28c919655f4824c0a6c5fd09613dedb0ba05",
+    "textarea": "d01c96b71f5e9e85a604f2f0a8eeb53c6434edf57bd370b6c9bc6a29f1d1fa59",
+    "dialog": "83fc12b68e03a61868045c080ccaba2529476512ffcbc7e0f394150c79e2b66f",
+    "spinner": "76cc4db40d13e68d42e5785dd48a9c922588a99f44b9747fc1fb38cce980acee"
+  }
+}
