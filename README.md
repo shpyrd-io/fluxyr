@@ -8,6 +8,8 @@ as reusable skills.
 Create an application with a Flask-style API; Fluxyr handles tools, memory,
 conversations, streaming, background executions and scheduled routines.
 
+![Fluxyr agent interface with chat, tools, skills and execution sequence](https://raw.githubusercontent.com/shpyrd-io/fluxyr/main/assets/fluxyr-screenshot.png)
+
 ## Install
 
 ```sh
