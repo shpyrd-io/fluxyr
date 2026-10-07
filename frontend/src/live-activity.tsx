@@ -1,9 +1,15 @@
 import { Status } from "./status";
-import { useMemo, useEffect, useState, useRef, useLayoutEffect } from "react";
+import {
+  useEffect,
+  useState,
+  useRef,
+  useLayoutEffect,
+  useSyncExternalStore,
+} from "react";
 import { mainSession, type RecordData } from "./api";
 import { Button, DebugId } from "./components";
 import { Spinner } from "./ui/spinner/spinner";
-import { activityRows } from "./live-activity-data";
+import { ActivityFeed } from "./live-activity-data";
 import { UsageBadge } from "./usage";
 const phases: Record<string, string> = {
   waiting_model: "Waiting for model response",
@@ -19,17 +25,16 @@ function duration(seconds: number) {
   return value < 60 ? `${value}s` : `${Math.floor(value / 60)}m ${value % 60}s`;
 }
 export function LiveActivity({
-  events,
+  feed,
   jobs,
   open,
 }: {
-  events: RecordData[];
+  feed: ActivityFeed;
   jobs: RecordData[];
   open: (id: string) => void;
 }) {
-  const rows = useMemo(() => activityRows(events, jobs), [events, jobs]);
-  const active = rows.filter((r) => r.active);
-  const visible = active.length ? active : rows.slice(-4);
+  const rows = useSyncExternalStore(feed.subscribe, feed.getSnapshot);
+  useEffect(() => feed.setJobs(jobs), [feed, jobs]);
   const [now, setNow] = useState(Date.now() / 1000);
   const scroll = useRef<HTMLDivElement>(null);
   const [following, setFollowing] = useState(true);
@@ -39,12 +44,12 @@ export function LiveActivity({
       scroll.current.scrollTop = scroll.current.scrollHeight;
   }, [rows, following, expanded]);
   useEffect(() => {
-    if (!active.length) return;
+    if (!rows.length || !expanded) return;
     const id = setInterval(() => setNow(Date.now() / 1000), 1000);
     return () => clearInterval(id);
-  }, [active.length]);
+  }, [rows.length, expanded]);
   if (!rows.length) return null;
-  const content = (
+  const content = expanded ? (
     <>
       <div className="activity-legend">
         <span>. current stream</span>
@@ -59,7 +64,7 @@ export function LiveActivity({
           setFollowing(el.scrollHeight - el.scrollTop - el.clientHeight < 35);
         }}
       >
-        {visible.map((r) => (
+        {rows.map((r) => (
           <div
             className={"activity-line " + (r.active ? "live" : "finished")}
             key={r.key}
@@ -113,7 +118,7 @@ export function LiveActivity({
             <div
               className="activity-pulses"
               aria-label={`${r.chunks} stream fragments and ${r.tools} tool calls`}
-              title="Recent stream fragments and tool calls, in order. Total counts above include the full execution."
+              title="Live fragments and tool calls received since opening this view. Older activity is not replayed."
             >
               {r.markers ? (
                 r.markers.split(/(•+)/).map((part, i) => (
@@ -139,7 +144,7 @@ export function LiveActivity({
         </Button>
       )}
     </>
-  );
+  ) : null;
   return (
     <section className="live-activity" aria-label="Live execution activity">
       <Button
@@ -147,9 +152,8 @@ export function LiveActivity({
         aria-expanded={expanded}
         onClick={() => setExpanded(!expanded)}
       >
-        {expanded ? "▾" : "▸"}{" "}
-        {active.length ? "Live execution activity" : "Last execution activity"}
-        {!expanded && active.length > 0 && <Spinner size="SM" />}
+        {expanded ? "▾" : "▸"} Live execution activity
+        {!expanded && <Spinner size="SM" />}
       </Button>
       {expanded && content}
     </section>

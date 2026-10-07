@@ -96,3 +96,30 @@ def test_model_waiting_and_stream_activity_are_emitted_by_worker(make_app):
     ]
     assert phases[0] == "waiting_model"
     assert "streaming" in phases and "model_finished" in phases
+
+
+def test_live_event_replay_skips_old_marks_but_keeps_history_and_new_activity(make_app):
+    app, engine, _ = make_app()
+    job = engine.store.enqueue("Live activity test")
+    sid, jid = job["session_id"], job["id"]
+    old = engine.store.emit(sid, jid, "activity", {"chunks": 100})
+    answer = engine.store.emit(sid, jid, "delta", {"text": "Saved answer"})
+    cursor = engine.store.event_cursor()
+    new = engine.store.emit(sid, jid, "activity", {"chunks": 1})
+    events = engine.store.events(sid, activity_after=cursor)
+    assert old not in {e["id"] for e in events}
+    assert {answer, new} <= {e["id"] for e in events}
+    assert old in {e["id"] for e in engine.store.events(sid)}
+    # The live browser opts out of historical marks; other API clients retain replay.
+    response = app.test_client().get(
+        f"/api/events?session_id={sid}&activity=live", buffered=False
+    )
+    iterator = iter(response.response)
+    data = b""
+    for chunk in iterator:
+        data += chunk
+        if b": heartbeat" in chunk:
+            break
+    response.close()
+    assert b"Saved answer" in data
+    assert b'"type": "activity"' not in data

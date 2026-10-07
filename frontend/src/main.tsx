@@ -25,6 +25,7 @@ import { api, mainSession, RecordData, date } from "./api";
 import { Resources } from "./resources";
 import { Markdown } from "./markdown";
 import { LiveActivity } from "./live-activity";
+import { ActivityFeed } from "./live-activity-data";
 import { UsageProvider, UsageBadge } from "./usage";
 import { ExecutionFlowPanel } from "./execution-flow-panel";
 import { buildTimeline } from "./timeline";
@@ -359,6 +360,7 @@ function Chat({
     [title, setTitle] = useState(""),
     [kind, setKind] = useState("");
   const [generation, setGeneration] = useState(0);
+  const activityFeed = useMemo(() => new ActivityFeed(), [session, generation]);
   const [loaded, setLoaded] = useState(false);
   const memoryTrigger = useRef<HTMLButtonElement>(null);
   const [controlBusy, setControlBusy] = useState(false);
@@ -385,7 +387,7 @@ function Chat({
   useEffect(() => {
     load();
     setEvents([]);
-    const stream = new EventSource("/api/events?session_id=" + session);
+    const stream = new EventSource("/api/events?activity=live&session_id=" + session);
     let buffer: RecordData[] = [];
     let flush: ReturnType<typeof setTimeout> | undefined;
     stream.onmessage = (e) => {
@@ -396,39 +398,34 @@ function Chat({
           const batch = buffer;
           buffer = [];
           flush = undefined;
-          setEvents((old) => {
-            const seen = new Set(old.map((ev) => ev.id));
-            return [
-              ...old,
-              ...batch.filter((ev) => {
-                if (seen.has(ev.id)) return false;
-                seen.add(ev.id);
-                return true;
-              }),
-            ];
-          });
+          activityFeed.update(batch);
+          const historyBatch = batch.filter((ev) => ev.type !== "activity");
+          if (historyBatch.length)
+            setEvents((old) => {
+              const seen = new Set(old.map((ev) => ev.id));
+              return [
+                ...old,
+                ...historyBatch.filter((ev) => {
+                  if (seen.has(ev.id)) return false;
+                  seen.add(ev.id);
+                  return true;
+                }),
+              ];
+            });
+          if (batch.some((event) => [
+            "started", "building", "succeeded", "failed", "cancelled",
+            "interrupted", "waiting", "paused", "queued",
+          ].includes(event.type))) {
+            load();
+            refreshJobs();
+          }
         }, 50);
-      if (
-        [
-          "started",
-          "building",
-          "succeeded",
-          "failed",
-          "cancelled",
-          "waiting",
-          "paused",
-          "queued",
-        ].includes(event.type)
-      ) {
-        load();
-        refreshJobs();
-      }
     };
     return () => {
       stream.close();
       clearTimeout(flush);
     };
-  }, [session, load, refreshJobs, generation]);
+  }, [session, load, refreshJobs, generation, activityFeed]);
   const timeline = useMemo(
     () => buildTimeline(messages, events),
     [messages, events],
@@ -823,7 +820,7 @@ function Chat({
           </Button>
         )}
         <div className="composer-area">
-          <LiveActivity events={events} jobs={allJobs} open={open} />
+          <LiveActivity feed={activityFeed} jobs={allJobs} open={open} />
           {active && (
             <div className="activity">
               <Status status={active.status} />

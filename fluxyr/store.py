@@ -3,7 +3,7 @@
 import copy
 import time
 
-from sqlalchemy import exists, select, update
+from sqlalchemy import exists, func, or_, select, update
 
 from .cancelled_context import cancelled_context
 from .database import MAIN_SESSION, row_dict
@@ -61,11 +61,19 @@ class Store:
             session.status = "idle"
             return {"cleared": True, "archive_session_id": archive.id}
 
-    def events(self, session_id, after=0):
+    def event_cursor(self):
+        with self.db.transaction() as s:
+            return s.scalar(select(func.max(Event.id))) or 0
+
+    def events(self, session_id, after=0, *, activity_after=None):
         with self.db.transaction() as s:
             query = select(Event).where(Event.id > after)
             if session_id:
                 query = query.where(Event.session_id == session_id)
+            if activity_after is not None:
+                query = query.where(
+                    or_(Event.type != "activity", Event.id > activity_after)
+                )
             return [
                 {**row_dict(x), "payload": restore_tool_identity(x.type, x.payload)}
                 for x in s.scalars(query.order_by(Event.id).limit(300))

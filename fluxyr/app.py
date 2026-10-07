@@ -339,16 +339,26 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
         after = int(
             request.headers.get("Last-Event-ID") or request.args.get("after", 0)
         )
+        # Progress marks are ephemeral UI feedback, not conversation history.
+        activity_after = (
+            engine.store.event_cursor()
+            if request.args.get("activity") == "live"
+            else None
+        )
 
         def generate():
             cursor = after
             # Polls use short transactions; no DB connection is held by an idle browser.
             while True:
-                records = engine.store.events(sid, cursor)
+                records = engine.store.events(
+                    sid, cursor, activity_after=activity_after
+                )
                 for event in records:
                     cursor = event["id"]
                     yield f"id: {cursor}\ndata: {json.dumps(event)}\n\n"
                 if not records:
+                    # Do not rescan a tail containing only omitted progress marks.
+                    cursor = max(cursor, activity_after or 0)
                     yield ": heartbeat\n\n"
                     time.sleep(1)
 
