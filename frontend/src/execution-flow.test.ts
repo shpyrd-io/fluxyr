@@ -8,6 +8,15 @@ const e = (id: number, type: string, payload: Record<string, any> = {}) => ({
   job_id: "job",
   created_at: id,
 });
+test("tool cards use their own usage identity rather than the shared model request", () => {
+  const flow = executionFlow([], [
+    e(1, "tool_begin", {tool_call_id: "docs", tool_name: "tech_doc", model_call_id: "parent"}),
+    e(2, "tool_end", {tool_call_id: "docs", tool_name: "tech_doc", model_call_id: "parent", mode: "continue"}),
+  ]);
+  assert.equal(flow[0].jobId, "job");
+  assert.equal(flow[0].toolCallId, "docs");
+  assert.equal(flow[0].modelCallId, undefined);
+});
 test("explicit parallel batches retain branches even when individual calls finish before the next begins", () => {
   const events = [
     e(1, "tool_batch_start", {

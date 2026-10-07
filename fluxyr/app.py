@@ -1,5 +1,6 @@
-"""Unauthenticated, single-instance web API and event replay."""
+"""Single-instance web API and event replay, with optional approval authorization."""
 
+import hmac
 import json
 import time
 from pathlib import Path
@@ -8,6 +9,7 @@ from flask import (
     Blueprint,
     Flask,
     Response,
+    abort,
     jsonify,
     request,
     send_file,
@@ -22,7 +24,7 @@ from ._version import __version__
 from .config import Settings
 from .database import MAIN_SESSION, row_dict
 from .engine import Engine
-from .models import Configuration, Job, MemoryTask, Message, Session, VaultItem
+from .models import Job, MemoryTask, Message, Session, VaultItem
 
 
 def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=None):
@@ -40,8 +42,8 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
     routes = Blueprint("fluxyr", __name__)
     app.extensions["engine"] = engine
     # Fail before serving if app tools or file skills collide with engine definitions.
-    from .tools.registry import Registry
     from .core.brain import SyntheticBrain
+    from .tools.registry import Registry
 
     with engine.db.transaction() as s:
         snapshot = engine.store.snapshot(s)
@@ -70,7 +72,7 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
 
     @app.before_request
     def local_origin():
-        # No authentication by design. Reject browser cross-origin writes to the local service.
+        # Reject browser cross-origin writes even when approval authentication is enabled.
         if request.method not in ("GET", "HEAD", "OPTIONS"):
             from urllib.parse import urlsplit
 
@@ -79,6 +81,24 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
                 return jsonify(error="Cross-origin requests are not allowed"), 403
             if request.headers.get("Sec-Fetch-Site") == "cross-site":
                 return jsonify(error="Cross-site requests are not allowed"), 403
+        approval_route = (
+            request.path == "/api/approvals"
+            or request.path.startswith("/api/approvals/")
+            or request.endpoint in {"fluxyr.decision", "fluxyr.vault_decision"}
+        )
+        if settings.approvals_api_key and approval_route:
+            scheme, _, token = request.headers.get("Authorization", "").partition(" ")
+            if scheme.lower() != "bearer" or not hmac.compare_digest(
+                token.encode(), settings.approvals_api_key.encode()
+            ):
+                return (
+                    jsonify(
+                        error="Approval API key required or invalid",
+                        code="approval_auth_required",
+                    ),
+                    401,
+                    {"WWW-Authenticate": 'Bearer realm="Fluxyr approvals"'},
+                )
 
     @app.after_request
     def headers(response):
@@ -245,6 +265,58 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
     def control(jid, action):
         return jsonify(public_job(engine.store.control(jid, action)))
 
+    @routes.get("/api/approvals")
+    def approvals():
+        from .approvals import approval_view, open_request
+
+        result = []
+        with engine.db.transaction() as s:
+            rows = s.execute(
+                select(Job.id, Job.session_id, Job.brain["pending_tools"])
+                .where(Job.status == "waiting")
+                .order_by(Job.created_at, Job.id)
+                .execution_options(yield_per=256)
+            )
+            for jid, sid, pending in rows:
+                for entry in pending or []:
+                    if open_request(entry):
+                        result.append(approval_view(jid, sid, entry))
+        return jsonify(result)
+
+    @routes.get("/api/approvals/<jid>/<request_id>/assets/<int:choice_index>")
+    def approval_asset(jid, request_id, choice_index):
+        from .approvals import open_request
+
+        with engine.db.transaction() as s:
+            job = s.get(Job, jid)
+            if not job or job.status != "waiting":
+                abort(404, "Approval is no longer pending")
+            entry = next(
+                (
+                    p
+                    for p in (job.brain or {}).get("pending_tools", [])
+                    if (p.get("_request_id") or p.get("call_id")) == request_id
+                    and open_request(p)
+                ),
+                None,
+            )
+            choices = (
+                (entry or {})
+                .get("_result", {})
+                .get("__pua__", {})
+                .get("payload", {})
+                .get("choices", [])
+            )
+            if choice_index >= len(choices) or not isinstance(
+                choices[choice_index], dict
+            ):
+                abort(404, "Approval asset not found")
+            path = choices[choice_index].get("path")
+            if not path:
+                abort(404, "Approval asset not found")
+        return preview_response(engine.files.path(path))
+
+    @routes.post("/api/approvals/<jid>/<call_id>/decision")
     @routes.post("/api/jobs/<jid>/decisions/<call_id>")
     def decision(jid, call_id):
         value = request.json
@@ -254,6 +326,7 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
             raise ValueError("Result must be an object")
         return jsonify(engine.store.decide(jid, call_id, value))
 
+    @routes.post("/api/approvals/<jid>/<request_id>/credential")
     @routes.post("/api/jobs/<jid>/vault/<request_id>")
     def vault_decision(jid, request_id):
         from .interactions.vault import save_credential
@@ -287,8 +360,8 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
 
     @routes.get("/api/tools")
     def tools_catalogue():
-        from .tools.registry import Registry
         from .core.brain import SyntheticBrain
+        from .tools.registry import Registry
 
         with engine.db.transaction() as s:
             snapshot = engine.store.snapshot(s)
@@ -385,6 +458,7 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
     def routine_preview():
         from datetime import datetime
         from zoneinfo import ZoneInfo
+
         from .routines import next_occurrence
 
         data = request.get_json() or {}
@@ -481,7 +555,9 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
 
     @routes.get("/preview/<path:name>")
     def preview(name):
-        path = engine.files.path(name)
+        return preview_response(engine.files.path(name))
+
+    def preview_response(path):
         response = send_file(path, conditional=True)
         response.headers["Content-Security-Policy"] = (
             "sandbox allow-scripts; default-src 'none'; img-src 'self' data: blob:; style-src 'unsafe-inline' 'self'; script-src 'unsafe-inline' 'self'; media-src 'self' blob:; font-src 'self'; connect-src 'none'; form-action 'none'"

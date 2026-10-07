@@ -25,3 +25,7 @@ share execution status labels without changing backend states.
 Bundled IBM Plex Mono and Inter fonts are distributed under the SIL Open Font
 License 1.1. Their copyright and license texts are in frontend/public/licenses
 and included in the packaged UI.
+
+PDF previews use Mozilla PDF.js (pdfjs-dist), distributed under the Apache
+License 2.0. Its license is included in frontend/public/licenses/PDFjs-LICENSE
+and in the packaged UI. The viewer and worker are served locally.

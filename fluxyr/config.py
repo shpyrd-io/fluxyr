@@ -26,6 +26,9 @@ def env(name, default, cast=str, *, prefer=None):
 
 @dataclass
 class Settings:
+    approvals_api_key: str = field(
+        default_factory=lambda: os.getenv("FLUXYR_APPROVALS_API_KEY", ""), repr=False
+    )
     agent_name: str = env("FLUXYR_AGENT_NAME", "Default Agent")
     database_url: str = env("DATABASE_URL", "")
     root: Path = env("FLUXYR_ROOT", ".", Path)  # noqa: RUF009 - env returns a dataclass field factory

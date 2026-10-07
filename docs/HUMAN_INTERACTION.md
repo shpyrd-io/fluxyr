@@ -1,5 +1,8 @@
 # Human interaction review
 
+For reading pending requests and submitting decisions from another application,
+see the [approval HTTP API and optional Bearer authorization](APPROVALS_API.md).
+
 ## Input limits
 
 `ask_human` accepts a question of 1–500 characters and, optionally, 2–6 plain

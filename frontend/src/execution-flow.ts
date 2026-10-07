@@ -10,6 +10,7 @@ export type FlowNode = {
   children?: FlowNode[];
   inferred?: boolean;
   modelCallId?: string;
+  toolCallId?: string;
   versionId?: string;
 };
 const terminal = new Set(["succeeded", "failed", "cancelled", "interrupted"]);
@@ -83,7 +84,7 @@ export function executionFlow(
         kind: p.tool_name === "ask_human" ? "human_request" : "tool",
         label: p.tool_name || "Tool call",
         versionId: p.version_id || p.result?.version_id,
-        modelCallId: p.model_call_id,
+        toolCallId: p.tool_call_id,
         status:
           p.result?.error || p.result?.success === false
             ? "error"

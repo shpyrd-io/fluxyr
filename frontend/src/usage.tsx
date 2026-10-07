@@ -35,26 +35,32 @@ function cost(u?: RecordData) {
 export function UsageBadge({
   jobId,
   callId,
+  toolCallId,
   total = false,
 }: {
   jobId?: string;
   callId?: string;
+  toolCallId?: string;
   total?: boolean;
 }) {
   const usage = useContext(UsageContext);
   const u = total
     ? usage.total
-    : callId
-      ? usage.by_call?.[callId]
-      : jobId
-        ? usage.by_job?.[jobId]
-        : null;
+    : toolCallId
+      ? usage.by_tool?.[jobId || ""]?.[toolCallId]
+      : callId
+        ? usage.by_call?.[callId]
+        : jobId
+          ? usage.by_job?.[jobId]
+          : null;
   if (!u && !total) return null;
   const explanation = total
     ? "Instance total since usage tracking began, including child executions and memory."
-    : callId
-      ? "Usage for the model request that generated this block, shared with other blocks from that request. Do not add these repeated values."
-      : "Execution usage, including its child executions and memory.";
+    : toolCallId
+      ? "Provider-reported usage for model requests made by this tool. Excludes the agent response that called it."
+      : callId
+        ? "Usage for the model request that generated this block, shared with other blocks from that request. Do not add these repeated values."
+        : "Execution usage, including its child executions and memory.";
   return (
     <span
       className={total ? "usage-total" : "usage-badge"}

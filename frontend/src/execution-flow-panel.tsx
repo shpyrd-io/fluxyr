@@ -102,8 +102,11 @@ export function ExecutionFlowPanel({
           {n.versionId && <DebugId id={n.versionId} label="v" />}
           <UsageBadge
             callId={n.modelCallId}
+            toolCallId={n.toolCallId}
             jobId={
-              ["build", "execution"].includes(n.kind) ? n.jobId : undefined
+              n.toolCallId || ["build", "execution"].includes(n.kind)
+                ? n.jobId
+                : undefined
             }
           />
         </CardContent>

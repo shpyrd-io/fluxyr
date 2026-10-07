@@ -1,6 +1,8 @@
 from decimal import Decimal
 from types import SimpleNamespace as NS
 
+import pytest
+
 from fluxyr.activity import ActivityEmitter
 from fluxyr.core.adapters.openai_execution import execute_stream
 from fluxyr.models import Routine
@@ -55,13 +57,13 @@ def test_usage_captures_provider_cost_and_aggregates_descendants_once(make_app):
     adapter = bind_usage(NS(), emit)
     emit("model_start", {})
     raw = {
-        'provider': "openrouter",
-        'model': "minimax/minimax-m3",
-        'request_id': "req1",
-        'input_tokens': 10,
-        'cache_read_tokens': 5,
-        'output_tokens': 7,
-        'upstream_cost_micros': Decimal("1234.5"),
+        "provider": "openrouter",
+        "model": "minimax/minimax-m3",
+        "request_id": "req1",
+        "input_tokens": 10,
+        "cache_read_tokens": 5,
+        "output_tokens": 7,
+        "upstream_cost_micros": Decimal("1234.5"),
     }
     adapter._usage_callback(raw)
     adapter._usage_callback(raw)  # duplicate provider callback/replay must not add cost
@@ -94,3 +96,86 @@ def test_routine_prose_decodes_accents_on_read_write_and_execution(make_app):
         prose_unicode(r"Keep \u000a \u0061 \ud800 C:\new")
         == r"Keep \u000a \u0061 \ud800 C:\new"
     )
+
+
+def test_tool_usage_owns_subrequests_without_repeating_parent_cost(make_app):
+    _, engine, _ = make_app()
+    job = engine.store.enqueue("Read docs")
+
+    def emit(kind, payload):
+        engine.store.emit(job["session_id"], job["id"], kind, payload)
+
+    def usage(scope, tokens, tool=None, source="techdoc"):
+        payload = {
+            "source": source,
+            "activity_scope": scope,
+            "model_call_id": scope,
+            "provider": "test",
+            "request_id": scope,
+            "input_tokens": tokens,
+            "cost_usd": tokens / 1000,
+            "available": True,
+        }
+        if tool:
+            payload["tool_call_id"] = tool
+        emit("usage", payload)
+
+    for tool, name in [("docs", "tech_doc"), ("vault", "vault_list")]:
+        emit(
+            "tool_begin",
+            {"model_call_id": "parent", "tool_call_id": tool, "tool_name": name},
+        )
+    usage("parent", 10, source="agent")
+    # Legacy TechDoc plus a second chunk with explicit ownership aggregate together.
+    emit(
+        "substream_start",
+        {
+            "model_call_id": "parent",
+            "activity_scope": "legacy",
+            "tool_name": "tech_doc",
+        },
+    )
+    usage("legacy", 100)
+    usage("chunk2", 50, "docs")
+    usage("chunk2", 50, "docs")  # duplicate callback
+    report = usage_report(engine.db)
+    assert report["by_tool"][job["id"]]["docs"]["tokens"] == 150
+    assert report["by_tool"][job["id"]]["docs"]["cost_usd"] == pytest.approx(0.15)
+    assert "vault" not in report["by_tool"][job["id"]]
+    assert report["total"]["tokens"] == 160
+    assert report["by_call"]["parent"]["tokens"] == 10
+    # Ambiguous old parallel TechDoc calls must not get a guessed attribution.
+    emit(
+        "tool_begin",
+        {"model_call_id": "parent", "tool_call_id": "other", "tool_name": "tech_doc"},
+    )
+    report = usage_report(engine.db)
+    assert report["by_tool"][job["id"]]["docs"]["tokens"] == 50
+    assert report["total"]["tokens"] == 160
+
+
+def test_techdoc_registry_binds_and_resets_tool_usage_context(make_app, monkeypatch):
+    from fluxyr.tools.registry import Registry
+    from fluxyr.tools.techdoc.llm import activity_emitter
+
+    _, engine, _ = make_app()
+    job = engine.store.enqueue("Read docs")
+    captured = []
+    registry = Registry(
+        engine, job, lambda k, p: captured.append((k, p)), lambda: False
+    )
+
+    def docs(**kwargs):
+        activity_emitter.get()("usage", {"model_call_id": "nested"})
+        return "Reference"
+
+    monkeypatch.setattr("fluxyr.tools.techdoc.get_integration_docs", docs)
+    previous = activity_emitter.get()
+    assert registry.techdoc({"url": "https://example.com"}, "docs-call", None) == {
+        "reference": "Reference"
+    }
+    assert captured[-1] == (
+        "usage",
+        {"model_call_id": "nested", "tool_call_id": "docs-call"},
+    )
+    assert activity_emitter.get() is previous

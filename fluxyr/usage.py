@@ -42,6 +42,35 @@ def bind_usage(adapter, emit, context=None):
 
 def usage_report(db):
     with db.transaction() as s:
+        # Older TechDoc requests recorded their scope but not the owning tool call.
+        # Recover only unambiguous associations; never assign a shared parent cost.
+        candidates = {}
+        for jid, parent, tool in s.execute(
+            select(
+                Event.job_id,
+                Event.payload["model_call_id"].as_string(),
+                Event.payload["tool_call_id"].as_string(),
+            ).where(
+                Event.type == "tool_begin",
+                Event.payload["tool_name"].as_string() == "tech_doc",
+            )
+        ):
+            if parent and tool:
+                candidates.setdefault((jid, parent), set()).add(tool)
+        legacy_tools = {}
+        for jid, scope, parent in s.execute(
+            select(
+                Event.job_id,
+                Event.payload["activity_scope"].as_string(),
+                Event.payload["model_call_id"].as_string(),
+            ).where(
+                Event.type == "substream_start",
+                Event.payload["tool_name"].as_string() == "tech_doc",
+            )
+        ):
+            matches = candidates.get((jid, parent), set())
+            if scope and len(matches) == 1:
+                legacy_tools[(jid, scope)] = next(iter(matches))
         events = s.execute(
             select(Event.id, Event.job_id, Event.payload, Event.created_at)
             .where(Event.type == "usage")
@@ -71,7 +100,7 @@ def usage_report(db):
                 "missing_tokens": 0,
             }
 
-        total, by_job, by_call, seen = empty(), {}, {}, set()
+        total, by_job, by_call, by_tool, seen = empty(), {}, {}, {}, set()
         since = None
         for event in events:
             if since is None:
@@ -83,6 +112,13 @@ def usage_report(db):
                 continue
             seen.add(key)
             targets = [total, by_call.setdefault(call, empty())]
+            tool = p.get("tool_call_id")
+            if not tool and p.get("source") == "techdoc":
+                tool = legacy_tools.get((event.job_id, p.get("activity_scope")))
+            if tool:
+                targets.append(
+                    by_tool.setdefault(event.job_id, {}).setdefault(tool, empty())
+                )
             jid, visited = event.job_id, set()
             while jid and jid not in visited:
                 visited.add(jid)
@@ -106,6 +142,7 @@ def usage_report(db):
             "total": total,
             "by_job": by_job,
             "by_call": by_call,
+            "by_tool": by_tool,
             "since": since,
         }
 

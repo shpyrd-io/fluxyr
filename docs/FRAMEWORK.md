@@ -54,6 +54,7 @@ credentials used by actions.
 | --- | --- |
 | `DATABASE_URL` | SQLite at `<root>/.runtime/fluxyr.sqlite3`; optional SQLite or PostgreSQL SQLAlchemy URL |
 | `FLUXYR_AGENT_NAME` | `Default Agent`; instance name displayed in the sidebar |
+| `FLUXYR_APPROVALS_API_KEY` | Empty disables approval authentication. When set, requires Bearer authorization for approval listing, attached previews, decisions and requested credential saves; other APIs remain open. See [approval API](APPROVALS_API.md). |
 | `FLUXYR_PROVIDER` | `openrouter`; also `openai`, `anthropic`, `custom` |
 | `FLUXYR_MODEL` | Required when starting the agent worker; no implicit model |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY` | Key for the selected provider required when starting workers |

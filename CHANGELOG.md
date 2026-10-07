@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add a pending approval API and optional `FLUXYR_APPROVALS_API_KEY` Bearer authorization for listing/responding, with an in-app key prompt.
+- Add `get_current_datetime` for current date/time and timezone-aware relative-date context in agents and builders.
+- Show tool-owned token usage and cost in conversation and execution cards, including historical TechDoc calls, without repeating the initiating model request's usage.
+- Render local PDFs inside Files and conversation previews without relying on the browser PDF plugin; open PDFs and images as previews instead of text.
+- Guide credential setup with descriptive Vault names and explicit, consistent environment selection.
 - Preserve acquired conversation context when cancelling a job, without resuming cancelled tools or forms.
 - Prefill public OAuth settings in private credential forms for creation and editing.
 - Expose human-question and choice-label limits in tool schemas and agent instructions.

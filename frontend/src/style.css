@@ -500,6 +500,11 @@ main {
   margin-bottom: 15px;
   font-weight: 500;
 }
+.welcome-tagline-space {
+  font: 9px var(--font-mono);
+  height: 1lh;
+  margin-bottom: 12px;
+}
 .welcome > p:not(.eyebrow) {
   font-size: 13px;
 }
@@ -1163,7 +1168,7 @@ textarea::placeholder {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.file-row > .fluxyr-button:last-child {
+.file-row > .fluxyr-button:not(:first-child) {
   font-size: 9px;
   border: 0;
   padding: 0 8px;
@@ -1196,6 +1201,40 @@ textarea::placeholder {
 }
 .preview-card a {
   font-size: 11px;
+}
+.file-layout > *, .preview-card {
+  min-width: 0;
+}
+.preview-toolbar, .pdf-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.preview-toolbar strong {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.pdf-controls {
+  justify-content: center;
+  margin: 12px 0;
+}
+.pdf-page {
+  width: 100%;
+  min-height: 1px;
+  max-height: 70vh;
+  overflow: auto;
+}
+.pdf-page canvas {
+  display: block;
+  max-width: 100%;
+  margin: auto;
+}
+.file-image-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  margin: 12px auto 0;
 }
 .error {
   padding: 14px 17px;
@@ -1491,7 +1530,7 @@ textarea::placeholder {
   .welcome h2 {
     font-size: 24px;
   }
-  .welcome .eyebrow {
+  .welcome-tagline-space {
     font-size: 7px;
   }
   .welcome p {

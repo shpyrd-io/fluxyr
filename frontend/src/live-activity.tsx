@@ -81,7 +81,10 @@ export function LiveActivity({
                 {r.scope !== "main" ? " · " + (r.tool || "subcall") : ""}
               </Button>
               <DebugId id={r.jobId} />
-              <UsageBadge jobId={r.jobId} />
+              <UsageBadge
+                jobId={r.scope === "main" ? r.jobId : undefined}
+                callId={r.scope !== "main" ? r.scope : undefined}
+              />
               <Status status={r.status} />
             </div>
             <div className="activity-phase">

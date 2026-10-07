@@ -7,10 +7,15 @@ import { Label } from "./ui/label/label";
 import React, { useState, useEffect, useCallback } from "react";
 import { api, RecordData, date } from "./api";
 import { Button, Input, Textarea, Panel, Badge } from "./components";
-import { Wrench, KeyRound, Clock3, Folder, FileCode2 } from "lucide-react";
+import { Wrench, KeyRound, Clock3, Folder, FileCode2, Trash2 } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody,
+} from "./ui/dialog/dialog";
 
 import { ResourceCatalogue } from "./resource-catalogue";
 import { ToolCatalogue } from "./tool-catalogue";
+import { LocalFilePreview } from "./local-file-preview";
+import { filePreviewKind, filePreviewUrl } from "./file-preview-kind";
 
 type Props = {
   page: string;
@@ -287,7 +292,10 @@ function Files({ onError }: { onError: (s: string) => void }) {
   const [path, setPath] = useState("."),
     [items, setItems] = useState<RecordData[]>([]),
     [file, setFile] = useState<RecordData | null>(null),
-    [preview, setPreview] = useState("");
+    [preview, setPreview] = useState(""),
+    [deleting, setDeleting] = useState<RecordData | null>(null),
+    [deleteBusy, setDeleteBusy] = useState(false),
+    [deleteError, setDeleteError] = useState("");
   const load = useCallback(
     () =>
       api("/files?path=" + encodeURIComponent(path))
@@ -299,6 +307,11 @@ function Files({ onError }: { onError: (s: string) => void }) {
     load();
   }, [load]);
   async function edit(p: string) {
+    if (filePreviewKind(p) !== "frame") {
+      setPreview(filePreviewUrl(p));
+      setFile(null);
+      return;
+    }
     try {
       setFile(await api("/files/content?path=" + encodeURIComponent(p)));
       setPreview("");
@@ -378,16 +391,24 @@ function Files({ onError }: { onError: (s: string) => void }) {
               {!item.directory && (
                 <Button
                   onClick={() => {
-                    setPreview(
-                      "/preview/" +
-                        item.path.split("/").map(encodeURIComponent).join("/"),
-                    );
+                    setPreview(filePreviewUrl(item.path));
                     setFile(null);
                   }}
                 >
                   Preview ↗
                 </Button>
               )}
+              <Button
+                className="danger"
+                aria-label={`Delete ${item.name}`}
+                title={`Delete ${item.name}`}
+                onClick={() => {
+                  setDeleteError("");
+                  setDeleting(item);
+                }}
+              >
+                <Trash2 size={14} />
+              </Button>
             </div>
           ))}
         </div>
@@ -422,18 +443,59 @@ function Files({ onError }: { onError: (s: string) => void }) {
           </form>
         )}
         {preview && (
-          <div className="panel preview-card">
-            <a target="_blank" href={preview} rel="noreferrer">
-              Open file ↗
-            </a>
-            <iframe
-              title="Local file preview"
-              src={preview}
-              sandbox="allow-scripts"
-            />
-          </div>
+          <LocalFilePreview url={preview} title={decodeURIComponent(preview.slice("/preview/".length))} onClose={() => setPreview("")} />
         )}
       </div>
+      <Dialog
+        open={!!deleting}
+        onOpenChange={(open) => {
+          if (!open && !deleteBusy) setDeleting(null);
+        }}
+      >
+        <DialogContent className="resource-dialog delete-dialog">
+          <DialogHeader>
+            <DialogTitle>Delete {deleting?.name}?</DialogTitle>
+            <DialogDescription>
+              {deleting?.directory
+                ? "Only empty folders can be deleted. This cannot be undone."
+                : "This permanently deletes the file from your agent’s data directory."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            {deleteError && <p role="alert" className="form-error">{deleteError}</p>}
+            <div className="dialog-actions">
+              <Button disabled={deleteBusy} onClick={() => setDeleting(null)}>
+                Cancel
+              </Button>
+              <Button
+                className="danger"
+                disabled={deleteBusy}
+                onClick={async () => {
+                  if (!deleting) return;
+                  setDeleteBusy(true);
+                  setDeleteError("");
+                  try {
+                    await api("/files/operation", "POST", {
+                      operation: "delete", path: deleting.path,
+                    });
+                    if (file?.path === deleting.path) setFile(null);
+                    const deletedPreview = "/preview/" + deleting.path.split("/").map(encodeURIComponent).join("/");
+                    if (preview === deletedPreview) setPreview("");
+                    setDeleting(null);
+                    await load();
+                  } catch (e: any) {
+                    setDeleteError(e.message);
+                  } finally {
+                    setDeleteBusy(false);
+                  }
+                }}
+              >
+                {deleteBusy ? "Deleting…" : deleting?.directory ? "Delete folder" : "Delete file"}
+              </Button>
+            </div>
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

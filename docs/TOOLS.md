@@ -1,6 +1,6 @@
 # Native tools
 
-Fluxyr ships with **37 built-in tools** across the agent and the isolated skill
+Fluxyr ships with **38 built-in tools** across the agent and the isolated skill
 builder. They cover research, files, skills, credentials, human interaction,
 routines, execution inspection and memory. This reference follows the current source.
 
@@ -19,6 +19,7 @@ listed at the end.
 | Tool | Context | Parameters | Purpose |
 | --- | --- | --- | --- |
 | `list_tools` | Agent | None | List the tools available in the current context with their input schemas. Does not execute them. |
+| `get_current_datetime` | Both | `timezone?` | Read the current date, time, weekday, UTC offset and Unix timestamp from the server clock. Accepts an IANA timezone such as `America/Sao_Paulo` or `UTC`; defaults to the server's local timezone. |
 | `web_browse` | Both | `url`, web options below | Fetch a public HTTP(S) page and return its content, normally as clean Markdown. |
 | `web_extract` | Both | `url`, `css_selector`, web options below | Extract a section using a simple tag, class or ID selector, such as `article`, `.content` or `#main`. |
 | `tech_doc` | Both | `url`, `endpoints?` | Extract and distill API documentation into an integration reference, optionally focused on a list of endpoints. |

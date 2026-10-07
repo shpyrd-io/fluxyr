@@ -9,6 +9,7 @@ from ..inspection import execution_details, execution_list, skill_context
 from ..interactions.human import action_wait, human
 from ..models import Job
 from ..runtime.human_protocol import MAX_CHOICE_LABEL_LENGTH, MAX_MESSAGE_LENGTH
+from .clock import current_datetime
 from .contracts import ToolExecutionContext
 from .web import WebBrowserToolProvider
 
@@ -183,6 +184,20 @@ class Registry:
                     else self.definitions()
                 )
             ],
+            True,
+        )
+        add(
+            "get_current_datetime",
+            "Read the current date, time, weekday and UTC offset from the server clock. Use for today, now and relative date ranges; do not infer the date from memory. Defaults to the server's local timezone, which may differ from the user's.",
+            {
+                "timezone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Optional IANA timezone, e.g. America/Sao_Paulo or UTC. Omit to use the server's local timezone.",
+                }
+            },
+            [],
+            lambda args, *_: current_datetime(args.get("timezone")),
             True,
         )
         web = WebBrowserToolProvider()
@@ -636,6 +651,7 @@ class Registry:
             )
         if self.job["input"].get("builder"):
             allowed = {
+                "get_current_datetime",
                 "submit_plan",
                 "create_action",
                 "get_skill",
@@ -687,7 +703,11 @@ class Registry:
         from .techdoc.llm import activity_emitter, adapter_factory
 
         token = adapter_factory.set(self.engine.adapter)
-        activity_token = activity_emitter.set(self.emit)
+        activity_token = activity_emitter.set(
+            lambda kind, payload: self.emit(
+                kind, {**payload, "tool_call_id": call_id}
+            )
+        )
         try:
             self.progress(call_id, "Reading and distilling documentation…")
             return {"reference": get_integration_docs(**args)}

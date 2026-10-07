@@ -1,4 +1,5 @@
 import { Status, statusLabel } from "./status";
+import { ApprovalKeyDialog } from "./approval-key-dialog";
 import { StatusGrid } from "./ui/status-grid/status-grid";
 import { Typography } from "./ui/typography/typography";
 import { Separator } from "./ui/separator/separator";
@@ -30,6 +31,7 @@ import { buildTimeline } from "./timeline";
 import { pendingInteractions } from "./pending-interactions";
 import { HumanRequest } from "./human-request";
 import { BuildProgress } from "./build-progress";
+import { LocalFilePreview } from "./local-file-preview";
 import {
   Button,
   Textarea,
@@ -700,13 +702,11 @@ function Chat({
                   <Logo />
                   <span className="welcome-orbit" />
                 </div>
-                <p className="eyebrow">ONE AGENT. ENDLESS POSSIBILITIES.</p>
+                <div className="welcome-tagline-space" aria-hidden="true" />
                 <h2>What should your agent learn?</h2>
                 <p>
                   Build a skill, connect an API, or turn a recurring task into a
                   routine.
-                  <br />
-                  Everything runs here, on your infrastructure.
                 </p>
                 <div className="suggestions">
                   {[
@@ -996,16 +996,7 @@ function EventCard({
     );
   if (e.type === "preview")
     return (
-      <div className="preview-card">
-        <a href={e.payload.url} target="_blank" rel="noreferrer">
-          {e.payload.title} ↗
-        </a>
-        <iframe
-          title={e.payload.title}
-          src={e.payload.url}
-          sandbox="allow-scripts"
-        />
-      </div>
+      <LocalFilePreview url={e.payload.url} title={e.payload.title} />
     );
   if (e.type === "progress") return null;
   return (
@@ -1014,7 +1005,9 @@ function EventCard({
         <Wrench size={14} />
         <code>{e.payload.tool_name || "Tool call"}</code>
         <span className="tool-meta">
-          <UsageBadge callId={e.payload.model_call_id} />
+          {e.payload.tool_call_id && (
+            <UsageBadge jobId={e.job_id} toolCallId={e.payload.tool_call_id} />
+          )}
           <DebugId id={String(e.id)} label="event" />
           {(e.payload.version_id || e.payload.result?.version_id) && (
             <DebugId
@@ -1076,6 +1069,7 @@ function EventCard({
 }
 createRoot(document.getElementById("root")!).render(
   <UsageProvider>
+    <ApprovalKeyDialog />
     <App />
   </UsageProvider>,
 );

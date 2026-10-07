@@ -1,5 +1,7 @@
 # Local Python action development guide
 
+Use get_current_datetime when you need the actual current date/time while building or testing. Pass a known user/business IANA timezone when relevant; the server default is not necessarily the user's timezone. Do not hardcode this tool's returned date in reusable actions: relative periods must be computed at action runtime.
+
 ## Structured tool payloads
 
 For open-ended JSON payloads, prefer the explicitly JSON-encoded fields: create_action.parameters_json, test_action.params_json, and finish_execution.output_json. Send a string containing valid JSON and omit the corresponding object field. This is supported by this engine and decoded before validation; it avoids ambiguity in provider encoding of nested values. For example, params_json should contain `{"count":4,"sides":6,"drop_lowest":1,"enabled":false}`, not quoted numeric/boolean values. The original object fields remain supported. Do not infer that a provider used XML or that this engine stringifies values from a type error; report only the received type and actual validation result.

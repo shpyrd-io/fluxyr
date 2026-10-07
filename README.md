@@ -107,6 +107,7 @@ request human input and schedule routines.
 - [Native tools reference](docs/TOOLS.md)
 - [Python actions and credentials](docs/ACTIONS.md)
 - [Human interaction](docs/HUMAN_INTERACTION.md)
+- [Approval API and optional Bearer key](docs/APPROVALS_API.md)
 - [Docker and execution protection](docs/EXECUTION_PROTECTION.md)
 
 ## Development
