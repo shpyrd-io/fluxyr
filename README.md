@@ -1,8 +1,12 @@
 # Fluxyr
 
-A Python framework for building agents with tools, skills, memory and a web workbench.
-Create an application with a Flask-style API; Fluxyr handles conversations,
-streaming, background executions and scheduled routines.
+A Python framework for agents that expand their own capabilities and repair their
+skills through a self-healing workflow. Describe what you need in the web workbench:
+Fluxyr can research an integration, generate Python actions, test them and save them
+as reusable skills.
+
+Create an application with a Flask-style API; Fluxyr handles tools, memory,
+conversations, streaming, background executions and scheduled routines.
 
 ## Install
 
@@ -44,6 +48,28 @@ if __name__ == "__main__":
 
 Run `python app.py` and open **http://localhost:5050**.
 You can also start the bundled workbench directly with `fluxyr`.
+
+## Build skills through conversation
+
+Ask Fluxyr to create an integration in the workbench, for example:
+
+> Create a weather skill for my provider's API, with a forecast action accepting
+> a city. Ask me for the documentation URL and help me configure any credentials
+> in Vault. Test it for São Paulo, then create a routine that retrieves the
+> forecast every day at 08:00 in America/Sao_Paulo.
+
+Fluxyr turns the request into skill instructions and a technical specification.
+A dedicated builder generates the Python actions and declares their dependencies
+and Vault credentials. The workbench inspects the generated code, runs tests,
+checks the results and activates a tested version for future conversations and
+routines. You can follow the build and execution progress in the UI.
+
+The same loop supports **self-healing**: when an action fails, the agent can
+inspect the execution, diagnose the problem, revise the specification and rebuild
+the affected action. It tests the replacement before activation and can improve
+the skill's instructions from what it learns. Each code change creates a new
+version, preserving the previous versions and execution history. Missing
+credentials or required user choices are handled through embedded dialogs.
 
 ## Configuration
 
