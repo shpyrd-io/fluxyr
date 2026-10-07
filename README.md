@@ -47,7 +47,8 @@ if __name__ == "__main__":
 ```
 
 Run `python app.py` and open **http://localhost:5050**.
-You can also start the bundled workbench directly with `fluxyr`.
+The agent is already there in the workbench, ready for you to configure its skills,
+credentials and routines and start a conversation.
 
 ## Build skills through conversation
 
