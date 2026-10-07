@@ -110,6 +110,7 @@ class Engine:
 
     def _supervise(self):
         heartbeat = 0
+        scheduled = 0
         while not self.stopping.is_set():
             try:
                 if time.monotonic() - heartbeat > 10:
@@ -119,7 +120,9 @@ class Engine:
                     self.store.heartbeat(self.owner)
                     self.store.recover()
                     heartbeat = time.monotonic()
-                self.routines.tick()
+                if time.monotonic() - scheduled >= 1:
+                    self.routines.tick()
+                    scheduled = time.monotonic()
                 self.builds.resolve_dependencies()
                 self.futures = {f for f in self.futures if not f.done()}
                 while (

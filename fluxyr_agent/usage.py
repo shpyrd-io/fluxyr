@@ -42,13 +42,21 @@ def bind_usage(adapter, emit, context=None):
 
 def usage_report(db):
     with db.transaction() as s:
-        events = list(
-            s.scalars(select(Event).where(Event.type == "usage").order_by(Event.id))
+        events = s.execute(
+            select(Event.id, Event.job_id, Event.payload, Event.created_at)
+            .where(Event.type == "usage")
+            .order_by(Event.id)
+            .execution_options(yield_per=256)
         )
         parents = {
-            j.id: j.input.get("parent_job_id")
-            or j.input.get("builder", {}).get("parent_job_id")
-            for j in s.scalars(select(Job))
+            jid: parent or builder_parent
+            for jid, parent, builder_parent in s.execute(
+                select(
+                    Job.id,
+                    Job.input["parent_job_id"].as_string(),
+                    Job.input["builder"]["parent_job_id"].as_string(),
+                ).execution_options(yield_per=256)
+            )
         }
 
         def empty():
@@ -64,7 +72,10 @@ def usage_report(db):
             }
 
         total, by_job, by_call, seen = empty(), {}, {}, set()
+        since = None
         for event in events:
+            if since is None:
+                since = event.created_at
             p = event.payload
             call = p.get("model_call_id") or str(event.id)
             key = (p.get("provider"), p.get("request_id") or call)
@@ -95,7 +106,7 @@ def usage_report(db):
             "total": total,
             "by_job": by_job,
             "by_call": by_call,
-            "since": events[0].created_at if events else None,
+            "since": since,
         }
 
 

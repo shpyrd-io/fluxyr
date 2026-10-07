@@ -6,7 +6,7 @@ from pathlib import Path
 
 from flask import Flask, Response, jsonify, request, send_file, send_from_directory
 from jsonschema import ValidationError
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.exc import IntegrityError
 from werkzeug.exceptions import HTTPException
 
@@ -122,12 +122,12 @@ def create_app(settings=None, adapter_factory=None, start_worker=False):
                     )
                 ],
                 jobs=[
-                    public_job(j)
-                    for j in s.scalars(
-                        select(Job)
+                    dict(j, pending=j["pending"] or [])
+                    for j in s.execute(
+                        public_job_query()
                         .where(Job.session_id == sid)
                         .order_by(Job.created_at)
-                    )
+                    ).mappings()
                 ],
             )
 
@@ -185,10 +185,10 @@ def create_app(settings=None, adapter_factory=None, start_worker=False):
         with engine.db.transaction() as s:
             return jsonify(
                 [
-                    public_job(j)
-                    for j in s.scalars(
-                        select(Job).order_by(Job.created_at.desc()).limit(200)
-                    )
+                    dict(j, pending=j["pending"] or [])
+                    for j in s.execute(
+                        public_job_query().order_by(Job.created_at.desc()).limit(200)
+                    ).mappings()
                 ]
             )
 
@@ -506,6 +506,21 @@ def create_app(settings=None, adapter_factory=None, start_worker=False):
     if start_worker:
         engine.start()
     return app
+
+
+def public_job_query():
+    # Polling lists need metadata and pending human requests, never full context.
+    return select(
+        *(
+            c
+            for c in Job.__table__.columns
+            if c.name not in ("brain", "snapshot", "owner", "lease_until")
+        ),
+        case(
+            (Job.status == "waiting", Job.brain["pending_tools"]),
+            else_=None,
+        ).label("pending"),
+    )
 
 
 def public_job(job):

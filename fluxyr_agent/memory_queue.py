@@ -73,7 +73,8 @@ class MemoryQueue:
                 self.tick()
             except Exception:
                 log.exception("Memory queue iteration failed")
-            self.engine.stopping.wait(0.35)
+            # Extraction is background work; do not poll an empty queue 3x/sec.
+            self.engine.stopping.wait(1)
 
     def tick(self):
         self.apply_ready()
