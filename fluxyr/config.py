@@ -6,9 +6,9 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 PROVIDER_DEFAULTS = {
-    "anthropic": ("anthropic", "https://api.anthropic.com", "claude-sonnet-4-6"),
-    "openai": ("openai", "https://api.openai.com/v1", "gpt-4.1"),
-    "openrouter": ("openai", "https://openrouter.ai/api/v1", "minimax/minimax-m3"),
+    "anthropic": ("anthropic", "https://api.anthropic.com"),
+    "openai": ("openai", "https://api.openai.com/v1"),
+    "openrouter": ("openai", "https://openrouter.ai/api/v1"),
 }
 
 
@@ -39,10 +39,10 @@ class Settings:
     workspace_retention_days: int = env("FLUXYR_WORKSPACE_RETENTION_DAYS", "30", int)
     max_iterations: int = env("FLUXYR_MAX_ITERATIONS", "40", int)
     host: str = env("FLUXYR_HOST", "127.0.0.1")
-    port: int = env("FLUXYR_PORT", "5050", int, prefer="PORT")
+    port: int = env("PORT", "5050", int)
     http_threads: int = env("FLUXYR_HTTP_THREADS", "24", int)
     max_content_length: int = env("FLUXYR_MAX_CONTENT_LENGTH", "4194304", int)
-    provider: str = env("FLUXYR_PROVIDER", "anthropic")
+    provider: str = env("FLUXYR_PROVIDER", "openrouter")
     model: str = env("FLUXYR_MODEL", "")
     provider_endpoint: str = env("FLUXYR_PROVIDER_ENDPOINT", "")
     provider_format: str = env("FLUXYR_PROVIDER_FORMAT", "")
@@ -67,10 +67,13 @@ class Settings:
     def prepare(self):
         if self.execution_mode not in ("local", "landlock"):
             raise ValueError("FLUXYR_EXECUTION_MODE must be local or landlock")
+        self.root = self.root.resolve()
         if not self.database_url:
-            raise ValueError(
-                "DATABASE_URL is required; configure your PostgreSQL connection"
-            )
+            from sqlalchemy.engine import URL
+
+            self.database_url = URL.create(
+                "sqlite", database=str(self.runtime / "fluxyr.sqlite3")
+            ).render_as_string(hide_password=False)
         limits = {
             "workers": (1, 32),
             "tool_workers": (1, 32),
@@ -86,9 +89,7 @@ class Settings:
         }
         for name, (lo, hi) in limits.items():
             if not lo <= getattr(self, name) <= hi:
-                variable = (
-                    "PORT / FLUXYR_PORT" if name == "port" else f"FLUXYR_{name.upper()}"
-                )
+                variable = "PORT" if name == "port" else f"FLUXYR_{name.upper()}"
                 raise ValueError(f"{variable} must be between {lo} and {hi}")
         if self.provider not in (*PROVIDER_DEFAULTS, "custom"):
             raise ValueError(
@@ -140,10 +141,10 @@ class Settings:
             validate_support([self.data, self.workspace])
 
     def model_defaults(self):
-        wire, endpoint, model = PROVIDER_DEFAULTS.get(self.provider, ("", "", ""))
+        wire, endpoint = PROVIDER_DEFAULTS.get(self.provider, ("", ""))
         return {
             "provider": self.provider,
-            "model": self.model or model,
+            "model": self.model,
             "provider_endpoint": self.provider_endpoint or endpoint,
             "provider_format": self.provider_format or wire,
             "max_tokens": self.max_tokens,
@@ -153,6 +154,8 @@ class Settings:
         }
 
     def validate_credentials(self):
+        if not self.testing and not self.model.strip():
+            raise ValueError("FLUXYR_MODEL is required to start the agent worker")
         name = self.provider.upper() + "_API_KEY"
         if not self.testing and not os.getenv(name):
             raise ValueError(f"{name} is required to start the agent worker")

@@ -12,7 +12,7 @@ Never replace an already published version; issue a new version for changes.
 ## Publish
 
 1. Update `fluxyr/_version.py` and `CHANGELOG.md` in a reviewed commit on `main`.
-2. Wait for CI (Python 3.11/3.13, PostgreSQL, UI tests/build, package checks and
+2. Wait for CI (Python 3.11/3.13, fast SQLite tests, UI tests/build, package checks and
    an installed-wheel consumer test).
 3. Tag that commit and push the tag:
 
@@ -21,7 +21,7 @@ Never replace an already published version; issue a new version for changes.
    git push origin v0.1.0
    ```
 
-The Release workflow checks the tag/version and main ancestry, runs CI again,
+The Release workflow checks the tag/version and main ancestry, runs CI plus the full PostgreSQL/Linux integration suite,
 then publishes a GitHub release with the tested wheel, sdist and SHA256SUMS.
 Consumers of the wheel do not need Node. Installing from a Git checkout requires
 building the UI first; use the released wheel for a minimal consumer application.

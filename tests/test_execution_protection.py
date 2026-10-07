@@ -10,9 +10,12 @@ import zipfile
 
 import pytest
 
+
 from fluxyr.config import Settings
 from fluxyr.runtime.landlock import LandlockUnavailable, validate_support
 from fluxyr.runtime.python_runner import PythonRunner
+
+pytestmark = pytest.mark.integration
 
 
 def supported(tmp_path):

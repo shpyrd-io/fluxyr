@@ -8,10 +8,12 @@ from .core.adapters.openai import OpenAIAdapter
 
 
 def make_adapter(config, vault=None):
+    if not str(config.get("model") or "").strip():
+        raise ValueError("FLUXYR_MODEL is required to start the agent worker")
     provider = config["provider"]
     if provider not in (*PROVIDER_DEFAULTS, "custom"):
         raise ValueError("Unsupported model provider")
-    wire, endpoint, _ = PROVIDER_DEFAULTS.get(provider, ("", "", ""))
+    wire, endpoint = PROVIDER_DEFAULTS.get(provider, ("", ""))
     wire = config.get("provider_format") or wire
     endpoint = config.get("provider_endpoint") or endpoint
     if wire not in ("openai", "anthropic") or not endpoint:

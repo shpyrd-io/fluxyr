@@ -53,7 +53,7 @@ def main():
         from dotenv import dotenv_values
         from werkzeug._reloader import run_with_reloader
 
-        project = Path(app.root_path)
+        project = Path.cwd()
         values = {**dotenv_values(project / ".env"), **os.environ}
         data_root = Path(values.get("FLUXYR_ROOT") or project)
         if not data_root.is_absolute():

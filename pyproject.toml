@@ -43,4 +43,6 @@ fluxyr = ["prompts/*.md", "static/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not integration'"
+markers = ["integration: real subprocess, TLS, reload and platform isolation checks (full suite)"]
 pythonpath = ["."]

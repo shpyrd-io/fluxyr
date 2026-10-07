@@ -20,6 +20,8 @@ from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 from fluxyr.models import VaultItem
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def mtls_server(tmp_path, monkeypatch):

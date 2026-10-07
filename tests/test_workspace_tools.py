@@ -11,6 +11,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
+
 from PIL import Image
 
 from fluxyr.config import Settings
@@ -22,6 +23,8 @@ from fluxyr.runtime.landlock import LandlockUnavailable, validate_support
 from fluxyr.runtime.python_runner import PythonRunner, _locks
 from fluxyr.tools.registry import Registry
 from fluxyr.tools.workspace import WorkspaceTools
+
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(params=["local", "landlock"])

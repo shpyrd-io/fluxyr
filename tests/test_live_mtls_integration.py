@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 import pytest
+
 from cryptography.hazmat.primitives import serialization
 from dotenv import load_dotenv
 from sqlalchemy import select
@@ -14,6 +15,8 @@ from test_vault_oauth_mtls import mtls_server  # noqa: F401 - shared real TLS fi
 from fluxyr.database import row_dict
 from fluxyr.models import Event, Job, Tool, ToolVersion
 from fluxyr.providers import make_adapter
+
+pytestmark = pytest.mark.integration
 
 
 @pytest.mark.skipif(

@@ -2,12 +2,12 @@
 
 A consumer application uses the same engine as the bundled workbench. Install a
 built wheel in the application's own virtualenv; no Node installation is required
-when consuming a wheel. No package has been published to PyPI by this change.
+when consuming the package.
 
 ```sh
 python3 -m venv .venv
 . .venv/bin/activate
-pip install /path/to/fluxyr-0.1.0-py3-none-any.whl
+pip install fluxyr
 python app.py
 # Equivalent, with Flask-style import targets and factories:
 fluxyr --app app:app
@@ -37,13 +37,13 @@ if __name__ == "__main__":
 
 Copy [the minimal example](../examples/minimal/app.py) and its `.env.example`.
 Only `app.py` is necessary when the deployment already sets its environment.
-PostgreSQL is still the only required service. The existing workbench, built-in
-tools, memory, vault, scheduler and Python builder remain bundled.
+SQLite is included and used by default; PostgreSQL is optional. The workbench,
+built-in tools, memory, vault, scheduler and Python builder are bundled.
 
 ## Configuration
 
-The framework loads `.env` from the directory of the consumer's application
-module. Existing process environment wins. Configuration is frozen for the
+The framework loads `.env` from the current working directory (where the process
+was started). Existing process environment wins. Configuration is frozen for the
 application instance; restart to apply edits. `Settings` in Python remains
 available for test fixtures/embedding, not as an alternate persisted UI setting.
 The Settings page is read-only. Old `configurations.model` rows and provider keys
@@ -52,15 +52,15 @@ credentials used by actions.
 
 | Variable | Default / requirement |
 | --- | --- |
-| `DATABASE_URL` | Required PostgreSQL SQLAlchemy URL |
+| `DATABASE_URL` | SQLite at `<root>/.runtime/fluxyr.sqlite3`; optional SQLite or PostgreSQL SQLAlchemy URL |
 | `FLUXYR_AGENT_NAME` | `Default Agent`; instance name displayed in the sidebar |
-| `FLUXYR_PROVIDER` | `anthropic`; also `openai`, `openrouter`, `custom` |
-| `FLUXYR_MODEL` | Provider default: `claude-sonnet-4-6`, `gpt-4.1`, `minimax/minimax-m3`, respectively |
+| `FLUXYR_PROVIDER` | `openrouter`; also `openai`, `anthropic`, `custom` |
+| `FLUXYR_MODEL` | Required when starting the agent worker; no implicit model |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY` | Key for the selected provider required when starting workers |
-| `FLUXYR_ROOT` | Consumer module directory; `.` for the standalone CLI. Contains `data`, `workspace`, `.runtime` |
+| `FLUXYR_ROOT` | Current working directory. Optional override for `data`, `workspace`, `.runtime` (e.g. a Docker volume) |
 | `FLUXYR_SKILLS_DIR` | Empty disables file skills; otherwise path relative to `FLUXYR_ROOT`, or absolute |
-| `FLUXYR_HOST`, `FLUXYR_PORT` | `127.0.0.1`, `5050` |
-| `PORT` | When nonempty, overrides `FLUXYR_PORT`; an explicit `app.run(port=...)` still wins |
+| `FLUXYR_HOST` | `127.0.0.1` |
+| `PORT` | `5050`; an explicit `app.run(port=...)` wins |
 | `FLUXYR_WORKERS`, `FLUXYR_TOOL_WORKERS` | `4`, `6`; each 1–32 |
 | `FLUXYR_HTTP_THREADS` | `24` |
 | `FLUXYR_MAX_CONTENT_LENGTH` | `4194304` bytes |
@@ -80,7 +80,7 @@ credentials used by actions.
 | `FLUXYR_LOG_LEVEL` | `INFO` (CLI) |
 | `FLUXYR_APP` | Optional CLI import target; `--app` wins |
 
-`--init` initializes PostgreSQL and directories without starting workers or
+`--init` initializes the database and directories without starting workers or
 requiring a provider key. The UI never returns credential values or the database URL.
 For an existing installation, move model options/provider credentials previously
 saved through Settings into its environment before restarting.
@@ -115,7 +115,7 @@ support the selected protocol's streaming and tool calling.
 
 `workspace/` is disposable execution storage: copies of action source and runtime
 helpers, plus scratch files. Action versions, results, job state and human replies
-are persisted in PostgreSQL. Artifacts that must survive executions belong in
+are persisted in the database. Artifacts that must survive executions belong in
 `data/`. Dependency environments are cached separately under `.runtime/envs/`.
 
 At worker startup, after acquiring the database ownership lock and before
@@ -127,7 +127,7 @@ or its job is nonterminal (including paused/waiting/building). Legacy
 Symbolic links are never followed; a symlinked workspace root is not cleaned.
 Mounted subdirectories and entries that cannot be inspected are retained. Cleanup
 does not run on package import, HTTP-only initialization or each request. It leaves
-PostgreSQL history, `data/` and dependency caches untouched.
+Database history, `data/` and dependency caches untouched.
 
 ### Thinking and reasoning
 
@@ -220,7 +220,7 @@ endpoints live in the `fluxyr` blueprint. Register custom tools/routes/blueprint
 before initializing. Route/tool collisions are rejected; extension endpoints
 should use their own prefix such as `/api/example/`.
 
-Construction and decorators do not connect to PostgreSQL, create runtime folders
+Construction and decorators do not connect to the database, create runtime folders
 or start threads. `initialize()` connects, validates and registers engine routes.
 `start()` additionally starts the supervisor/worker pool, and is idempotent.
 `close()` stops workers and disposes connections, and is idempotent; create a new
@@ -231,26 +231,15 @@ The application is WSGI-callable. A raw WSGI request lazily initializes HTTP onl
 it does not start workers. For deployment, prefer `app.run()` / `fluxyr` in
 one process. For an external WSGI host, call `app.start()` after process creation
 in exactly one process and `app.close()` at shutdown. Never start workers before
-forking. PostgreSQL's existing advisory lock rejects a second supervisor for the
-same schema; it is not a distributed scheduler. Multiple installations require
-separate schemas/databases and runtime roots.
+forking. PostgreSQL uses an advisory lock per schema; SQLite uses an OS file lock
+beside its database to reject a second supervisor. SQLite uses WAL and serialized
+transactions, including atomic queue claims. Independent model/tool execution
+still runs concurrently; database writes are short and serialized. Use a local
+filesystem for SQLite, and PostgreSQL for larger workloads. Multiple installations
+require separate schemas/databases and runtime roots.
 
-## Validation evidence
+## Validation
 
-The framework change was checked with the full 100-test PostgreSQL suite and 13
-focused public-API/reloader checks after the final refinements, plus 20 frontend
-tests and a production UI build. The focused checks cover typed/nested parameters,
-DB access from concurrent native tools, error verdicts, read-only file skills,
-subfolder IDs, conflicting names/routes, environment precedence, relative paths,
-worker ownership, and actual subprocess reload on adding/removing Markdown and
-changing `.env`.
-
-The built wheel was installed with its dependencies into a fresh virtualenv outside
-the checkout. `scripts/validate_live_framework.py --run --python /path/to/venv/bin/python`
-creates a separate consumer project/schema, checks bundled UI/HTTP endpoints, then
-asks real MiniMax M3 via OpenRouter for the database time. The model uses the file
-skill and decorated `server_time` function to query PostgreSQL; no scripted model
-or fixed timestamp is supplied. Evidence from the final run is job
-`fb91c404-9fc2-40eb-89e2-ebaf29e039fc`; local reports/screenshots live under the
-ignored `.runtime` directory. The temporary database schema is removed after the
-probe; production conversations and skills are not modified.
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for the fast SQLite suite and complete
+PostgreSQL/Linux integration suite. Releases check both databases, supported
+Python versions and an installed wheel outside the source checkout.

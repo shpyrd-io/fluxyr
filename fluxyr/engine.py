@@ -66,6 +66,7 @@ class Engine:
         self.owner = str(uuid.uuid4())
         self.stopping = threading.Event()
         self.leader = None
+        self._sqlite_leader = None
         self.thread = None
         self._start_lock = threading.Lock()
         self.pool = None
@@ -98,6 +99,28 @@ class Engine:
                 raise RuntimeError(
                     "Another Fluxyr Agent worker already owns this database schema"
                 )
+        elif self.db.sqlite and self.db.engine.url.database not in (
+            None,
+            "",
+            ":memory:",
+        ):
+            import fcntl
+            import os
+            from pathlib import Path
+
+            database = Path(self.db.engine.url.database).resolve()
+            lock = os.fdopen(
+                os.open(str(database) + ".worker.lock", os.O_CREAT | os.O_RDWR, 0o600),
+                "a+b",
+            )
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                lock.close()
+                raise RuntimeError(
+                    "Another Fluxyr worker already owns this SQLite database"
+                ) from None
+            self._sqlite_leader = lock
         # Retention runs once, after the process fence and before any execution.
         from .runtime.workspace_cleanup import purge_workspace
 
@@ -126,6 +149,9 @@ class Engine:
             self.leader.commit()
             self.leader.close()
             self.leader = None
+        if self._sqlite_leader:
+            self._sqlite_leader.close()
+            self._sqlite_leader = None
 
     def _supervise(self):
         heartbeat = 0

@@ -52,6 +52,12 @@ def test_control_interrupts_blocked_provider_and_discards_late_tools(
             assert row.status == status
             assert row.error is None
         release.set()
+        # Wait for the provider thread's final event transaction. Its foreign-key
+        # lock may briefly make PostgreSQL SKIP LOCKED return no job on resume.
+        for _ in range(e.settings.workers):
+            assert e.provider_slots.acquire(timeout=2)
+        for _ in range(e.settings.workers):
+            e.provider_slots.release()
     assert not e.skills.list()
     if action == "pause":
         adapter.execute_step = original
@@ -228,16 +234,22 @@ def test_pause_local_python_preserves_process_then_resume_or_cancel(make_app):
 
 def test_enable_skill_refreshes_tools_in_same_workbench_turn(make_app):
     _, e, _ = make_app()
-    skill = e.skills.build('reenable', 'reenable', 'reenable')
-    version = e.skills.create(skill['id'], 'reenable', 'reenable', 'from fluxyr import output\noutput(1)', {'type':'object','properties':{}})
+    skill = e.skills.build("reenable", "reenable", "reenable")
+    version = e.skills.create(
+        skill["id"],
+        "reenable",
+        "reenable",
+        "from fluxyr import output\noutput(1)",
+        {"type": "object", "properties": {}},
+    )
     with e.db.transaction() as s:
-        s.get(ToolVersion, version['id']).state = 'tested'
-    e.skills.activate(version['id'])
-    e.skills.update(skill['id'], enabled=False)
-    e.store.enqueue('Enable it')
+        s.get(ToolVersion, version["id"]).state = "tested"
+    e.skills.activate(version["id"])
+    e.skills.update(skill["id"], enabled=False)
+    e.store.enqueue("Enable it")
     registry = Registry(e, e.store.claim(e.owner), lambda *_: None, lambda: False)
-    functions = {t['name']:t['function'] for t in registry.definitions()}
-    assert 'action_reenable' not in functions
-    result, _ = functions['set_skill_enabled'](skill_id=skill['id'], enabled=True)
-    assert result['enabled']
-    assert 'action_reenable' in {t['name'] for t in registry.definitions()}
+    functions = {t["name"]: t["function"] for t in registry.definitions()}
+    assert "action_reenable" not in functions
+    result, _ = functions["set_skill_enabled"](skill_id=skill["id"], enabled=True)
+    assert result["enabled"]
+    assert "action_reenable" in {t["name"] for t in registry.definitions()}

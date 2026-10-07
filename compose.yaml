@@ -17,11 +17,10 @@ services:
     build: .
     environment:
       DATABASE_URL: postgresql+psycopg2://fluxyr:${POSTGRES_PASSWORD:-fluxyr}@postgres:5432/fluxyr_agent
-      FLUXYR_PROVIDER: ${FLUXYR_PROVIDER:-anthropic}
+      FLUXYR_PROVIDER: ${FLUXYR_PROVIDER:-openrouter}
       FLUXYR_MODEL: ${FLUXYR_MODEL:-}
       FLUXYR_AGENT_NAME: ${FLUXYR_AGENT_NAME:-Default Agent}
-      PORT: ${PORT:-}
-      FLUXYR_PORT: ${FLUXYR_PORT:-5050}
+      PORT: ${PORT:-5050}
       FLUXYR_WORKERS: ${FLUXYR_WORKERS:-4}
       FLUXYR_TOOL_WORKERS: ${FLUXYR_TOOL_WORKERS:-6}
       FLUXYR_SKILLS_DIR: ${FLUXYR_SKILLS_DIR:-}
@@ -46,7 +45,7 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       VAULT_ENCRYPTION_KEY: ${VAULT_ENCRYPTION_KEY:-}
     ports:
-      - "${FLUXYR_BIND:-127.0.0.1}:${PORT:-${FLUXYR_PORT:-5050}}:${PORT:-${FLUXYR_PORT:-5050}}"
+      - "${FLUXYR_BIND:-127.0.0.1}:${PORT:-5050}:${PORT:-5050}"
     volumes:
       - agent:/var/lib/fluxyr
     depends_on:

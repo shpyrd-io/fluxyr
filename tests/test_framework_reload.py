@@ -11,6 +11,9 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
+
 
 def test_dev_reload_on_skill_add_remove_and_environment(database_url, tmp_path):
     if not database_url.startswith("postgresql"):
@@ -31,13 +34,13 @@ def pid(): return {'pid':os.getpid()}
         port = sock.getsockname()[1]
     config = root / ".env"
     config.write_text(
-        f"DATABASE_URL={database_url}\nFLUXYR_PORT={port}\nFLUXYR_SKILLS_DIR=skills\nFLUXYR_PROVIDER=openrouter\nOPENROUTER_API_KEY=test-no-requests\nFLUXYR_MAX_TOKENS=2000\n"
+        f"DATABASE_URL={database_url}\nPORT={port}\nFLUXYR_SKILLS_DIR=skills\nFLUXYR_PROVIDER=openrouter\nFLUXYR_MODEL=test-model\nOPENROUTER_API_KEY=test-no-requests\nFLUXYR_MAX_TOKENS=2000\n"
     )
     env = {
         k: v
         for k, v in os.environ.items()
         if not k.startswith("FLUXYR_")
-        and k not in ("DATABASE_URL", "WERKZEUG_RUN_MAIN")
+        and k not in ("DATABASE_URL", "PORT", "WERKZEUG_RUN_MAIN")
     }
     env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1])
     log = (root / "server.log").open("w")

@@ -34,12 +34,12 @@ def clean_environment(monkeypatch):
     "port,fluxyr_port,expected",
     [
         (None, None, 5050),
-        (None, "5059", 5059),
+        (None, "5059", 5050),
         ("8080", "5059", 8080),
-        ("", "5059", 5059),
+        ("", "5059", 5050),
     ],
 )
-def test_port_precedence(monkeypatch, port, fluxyr_port, expected):
+def test_port_uses_standard_environment_only(monkeypatch, port, fluxyr_port, expected):
     if port is not None:
         monkeypatch.setenv("PORT", port)
     if fluxyr_port is not None:
@@ -62,8 +62,9 @@ def test_built_in_defaults(provider, monkeypatch):
     monkeypatch.setenv("OPENAI_BASE_URL", "https://unwanted.invalid/v1")
     monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://unwanted.invalid")
     monkeypatch.setenv(provider.upper() + "_API_KEY", "test-key")
-    wire, endpoint, model = PROVIDER_DEFAULTS[provider]
-    config = Settings(provider=provider).model_defaults()
+    wire, endpoint = PROVIDER_DEFAULTS[provider]
+    model = "chosen-model"
+    config = Settings(provider=provider, model=model).model_defaults()
     assert config["model"] == model
     assert config["provider_format"] == wire
     adapter = make_adapter(config)
@@ -173,6 +174,7 @@ def test_openrouter_reasoning_mapping(monkeypatch, mode, effort, budget, expecte
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     settings = Settings(
         provider="openrouter",
+        model="test-model",
         thinking_mode=mode,
         thinking_budget=budget,
         reasoning_effort=effort,

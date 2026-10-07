@@ -1,9 +1,13 @@
 """Real Python subprocesses and persistence; scripted LLM only controls dispatch."""
 
+import pytest
+
 from conftest import execute_next
 from sqlalchemy import select
 
 from fluxyr.models import Effect, ToolVersion
+
+pytestmark = pytest.mark.integration
 
 
 def install(e, source):

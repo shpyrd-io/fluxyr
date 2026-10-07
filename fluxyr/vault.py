@@ -287,6 +287,8 @@ class Vault:
             return self.decrypt(item.content) if item else None
 
     def resolve(self, name):
+        if self.db.sqlite:
+            return self._resolve_sqlite(name)
         with self.db.transaction() as s:
             item = s.scalar(
                 select(VaultItem).where(VaultItem.name == name).with_for_update()
@@ -311,6 +313,44 @@ class Vault:
                 content = self._token(content, data)
                 item.content = self.encrypt(content)
             return content
+
+    def _resolve_sqlite(self, name):
+        from .runtime.python_runner import lock_for
+
+        # SQLite has one writer. Keep network token renewal outside its write
+        # transaction so the UI, cancellation and other jobs remain responsive.
+        with lock_for(("vault-oauth", str(self.db.engine.url), name)):
+            with self.db.transaction() as s:
+                item = s.scalar(select(VaultItem).where(VaultItem.name == name))
+                if not item:
+                    raise ValueError(f"Vault item not found: {name}")
+                original = item.content
+                item_id = item.id
+                content = self.decrypt(original)
+                if item.type != "oauth2" or (
+                    content.get("access_token")
+                    and content.get("expires_at", 0) > time.time() + 60
+                ):
+                    return content
+            grant = content.get("grant_type", "authorization_code")
+            if grant != "client_credentials" and content.get("refresh_token"):
+                grant = "refresh_token"
+            if grant == "authorization_code":
+                raise ValueError(f"Connect OAuth for {name} in Vault first")
+            data = {"grant_type": grant}
+            if grant == "refresh_token":
+                data["refresh_token"] = content["refresh_token"]
+            if content.get("scope"):
+                data["scope"] = content["scope"]
+            refreshed = self._token(content, data)
+            with self.db.transaction() as s:
+                item = s.get(VaultItem, item_id)
+                if item is None or item.content != original:
+                    raise ValueError(
+                        "Credential changed during token renewal; retry the action"
+                    )
+                item.content = self.encrypt(refreshed)
+            return refreshed
 
     def _token(self, content, data):
         auth = None

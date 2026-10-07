@@ -96,7 +96,11 @@ class PythonRunner:
             python = directory / "bin" / "python"
             if not (directory / ".ready").exists():
                 directory.mkdir(parents=True, exist_ok=True)
-                emit("Installing Python dependencies…")
+                emit(
+                    "Installing Python dependencies…"
+                    if dependencies
+                    else "Preparing Python environment…"
+                )
                 with tempfile.TemporaryDirectory(
                     prefix=".setup-", dir=directory
                 ) as scratch:
@@ -111,7 +115,11 @@ class PythonRunner:
                             cwd=scratch,
                         )
 
-                    install([sys.executable, "-m", "venv", str(directory)], 90)
+                    command = [sys.executable, "-m", "venv"]
+                    if not dependencies:
+                        # Stdlib-only actions need isolation, not a pip bootstrap.
+                        command.append("--without-pip")
+                    install([*command, str(directory)], 90)
                     if dependencies:
                         install(
                             [

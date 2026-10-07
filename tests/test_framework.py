@@ -209,8 +209,11 @@ def test_environment_wins_over_old_database_settings(framework, monkeypatch):
 
 def test_missing_required_environment_and_invalid_limits(monkeypatch, tmp_path):
     monkeypatch.delenv("DATABASE_URL", raising=False)
-    with pytest.raises(ValueError, match="DATABASE_URL is required"):
-        Settings(root=tmp_path).prepare()
+    settings = Settings(root=tmp_path)
+    settings.prepare()
+    assert settings.database_url == "sqlite:///" + str(
+        tmp_path / ".runtime/fluxyr.sqlite3"
+    )
     monkeypatch.setenv("FLUXYR_TOOL_WORKERS", "invalid")
     with pytest.raises(ValueError, match="FLUXYR_TOOL_WORKERS"):
         Settings()
@@ -248,14 +251,16 @@ def test_native_tool_failure_returns_false_and_is_persisted(framework):
     assert result["error"] == "native failure"
 
 
-def test_dotenv_and_relative_root_are_resolved_from_consumer_module(
+def test_dotenv_and_relative_root_are_resolved_from_working_directory(
     tmp_path, database_url, monkeypatch
 ):
     project = tmp_path / "consumer"
     project.mkdir()
+    monkeypatch.chdir(project)
     keys = ["DATABASE_URL", "FLUXYR_ROOT", "FLUXYR_PROVIDER", "FLUXYR_MAX_TOKENS"]
     for key in keys:
-        monkeypatch.delenv(key, raising=False)
+        monkeypatch.setenv(key, "")
+        monkeypatch.delenv(key)
     (project / ".env").write_text(
         f"DATABASE_URL={database_url}\nFLUXYR_ROOT=instance\nFLUXYR_PROVIDER=openrouter\nFLUXYR_MAX_TOKENS=2048\n"
     )

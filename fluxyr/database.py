@@ -1,11 +1,14 @@
-"""Explicit transaction ownership; PostgreSQL is the production backend."""
+"""Explicit transaction ownership for SQLite and PostgreSQL."""
 
-from contextlib import contextmanager
+import threading
+from contextlib import contextmanager, nullcontext
 
-from sqlalchemy import create_engine, insert, inspect, select, text, update
+from sqlalchemy import create_engine, event, insert, inspect, select, text, update
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
-from .models import Base, Configuration, Session, Version
+from .models import Base, Session, Version
 
 MAIN_SESSION = "00000000-0000-0000-0000-000000000001"
 
@@ -13,15 +16,53 @@ MAIN_SESSION = "00000000-0000-0000-0000-000000000001"
 class Database:
     def __init__(self, settings):
         self.settings = settings
-        if not settings.testing and not settings.database_url.startswith("postgresql"):
-            raise ValueError("Production requires PostgreSQL")
-        self.engine = create_engine(settings.database_url, pool_pre_ping=True)
+        url = make_url(settings.database_url)
+        self.sqlite = url.get_backend_name() == "sqlite"
+        if url.get_backend_name() not in ("postgresql", "sqlite"):
+            raise ValueError("DATABASE_URL must use SQLite or PostgreSQL")
+        self._transaction_lock = threading.RLock()
+        self._local = threading.local()
+        options = {"pool_pre_ping": True}
+        if self.sqlite:
+            options["connect_args"] = {"check_same_thread": False, "timeout": 30}
+            if url.database in (None, "", ":memory:"):
+                options["poolclass"] = StaticPool
+        self.engine = create_engine(url, **options)
+        if self.sqlite:
+
+            @event.listens_for(self.engine, "connect")
+            def configure_sqlite(connection, _):
+                connection.isolation_level = None
+                cursor = connection.cursor()
+                cursor.execute("PRAGMA busy_timeout=30000")
+                cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.close()
+
+            @event.listens_for(self.engine, "begin")
+            def begin_sqlite(connection):
+                # Claim/read-modify-write transactions must be atomic even though
+                # SQLite does not implement SELECT FOR UPDATE / SKIP LOCKED.
+                connection.exec_driver_sql("BEGIN IMMEDIATE")
+
         self.factory = sessionmaker(self.engine, expire_on_commit=False)
 
     @contextmanager
     def transaction(self):
-        with self.factory.begin() as session:
-            yield session
+        with self._transaction_lock if self.sqlite else nullcontext():
+            parent = getattr(self._local, "session", None) if self.sqlite else None
+            if parent is not None:
+                with parent.begin_nested():
+                    yield parent
+                return
+            with self.factory.begin() as session:
+                if self.sqlite:
+                    self._local.session = session
+                try:
+                    yield session
+                finally:
+                    if self.sqlite:
+                        self._local.session = None
 
     def initialize(self):
         with self.engine.begin() as conn:

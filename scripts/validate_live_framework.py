@@ -54,7 +54,7 @@ def main():
         FLUXYR_PROVIDER="openrouter",
         FLUXYR_MODEL="minimax/minimax-m3",
         FLUXYR_SKILLS_DIR="skills",
-        FLUXYR_PORT="5059",
+        PORT="5059",
     )
     origin = subprocess.check_output(
         [args.python, "-c", "import fluxyr; print(fluxyr.__file__)"],

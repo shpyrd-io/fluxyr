@@ -33,7 +33,14 @@ def test_public_job_lists_preserve_pending_without_loading_context(make_app):
         job_queries = [q for q in sql if "FROM jobs" in q]
         assert len(job_queries) == 2  # no deferred context loads per row
         assert all("jobs.snapshot" not in q for q in job_queries)
-        assert all("jobs.brain," not in q for q in job_queries)
+        # SQLite projects the pending subtree with JSON_EXTRACT(jobs.brain, ...).
+        # A bare selected brain column would materialize the entire context.
+        import re
+
+        assert all(
+            not re.search(r"(?:SELECT|,)\s*jobs\.brain\s*(?:,|AS)", q)
+            for q in job_queries
+        )
     finally:
         event.remove(engine.db.engine, "before_cursor_execute", capture)
 

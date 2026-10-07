@@ -14,7 +14,7 @@ ENV PYTHONUNBUFFERED=1 \
     FLUXYR_ROOT=/var/lib/fluxyr \
     FLUXYR_EXECUTION_MODE=landlock \
     FLUXYR_HOST=0.0.0.0 \
-    FLUXYR_PORT=8080
+    PORT=8080
 
 # Numeric UID also works with Shpyrd's runAsNonRoot policy.
 USER 10001:10001

@@ -7,7 +7,7 @@ COPY frontend/ ./
 RUN pnpm build
 
 FROM python:3.12-slim
-ENV PYTHONUNBUFFERED=1 FLUXYR_ROOT=/var/lib/fluxyr FLUXYR_HOST=0.0.0.0 FLUXYR_PORT=5050
+ENV PYTHONUNBUFFERED=1 FLUXYR_ROOT=/var/lib/fluxyr FLUXYR_HOST=0.0.0.0 PORT=5050
 WORKDIR /app
 COPY pyproject.toml setup.py requirements.lock NOTICE LICENSE README.md ./
 COPY fluxyr/ ./fluxyr/

@@ -176,3 +176,17 @@ def test_real_dependency_installation(make_app):
     )
     result = e.skills.test(v["id"], {})
     assert result["passed"] and result["output"] == "1.2.3"
+
+
+def test_stdlib_action_reuses_venv_without_pip_and_keeps_invocations_separate(make_app):
+    _, engine, _ = make_app()
+    version = {
+        "id": "stdlib-cache",
+        "source": "from fluxyr import output\nimport sys, importlib.util, os\noutput({'python': sys.executable, 'isolated': sys.prefix != sys.base_prefix, 'pip': importlib.util.find_spec('pip') is not None, 'cwd': os.getcwd()})",
+    }
+    first = engine.runner.run(version, {}, "first")
+    second = engine.runner.run(version, {}, "second")
+    assert first["success"] and second["success"]
+    assert first["output"]["isolated"] and not first["output"]["pip"]
+    assert first["output"]["python"] == second["output"]["python"]
+    assert first["output"]["cwd"] != second["output"]["cwd"]

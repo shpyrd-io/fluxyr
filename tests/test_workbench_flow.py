@@ -4,7 +4,11 @@ import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import pytest
+
 from conftest import execute_next
+
+pytestmark = pytest.mark.integration
 
 
 def test_build_weather_skill_schedule_and_execute(make_app):

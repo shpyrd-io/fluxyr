@@ -1,6 +1,5 @@
 """Public Flask-compatible application with an explicit engine lifecycle."""
 
-import os
 import signal
 import threading
 from pathlib import Path
@@ -54,15 +53,9 @@ class Fluxyr(Flask):
             if self._initialized:
                 return self
             if self._fluxyr_settings is None:
-                # Deterministic location: the consumer app's directory, never site-packages.
-                load_dotenv(Path(self.root_path) / ".env", override=False)
+                # Runtime data and .env belong to the directory the process was started in.
+                load_dotenv(Path.cwd() / ".env", override=False)
                 self._fluxyr_settings = Settings()
-                if not os.getenv("FLUXYR_ROOT"):
-                    self._fluxyr_settings.root = Path(self.root_path)
-                elif not self._fluxyr_settings.root.is_absolute():
-                    self._fluxyr_settings.root = (
-                        Path(self.root_path) / self._fluxyr_settings.root
-                    )
             from .app import create_app
 
             try:

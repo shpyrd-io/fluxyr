@@ -18,3 +18,9 @@ test-results/
 .env.*
 !.env.example
 .ruff_cache/
+
+# Local SQLite instances and their journals/worker fences
+*.sqlite*
+*.db
+*.db-*
+*.worker.lock
