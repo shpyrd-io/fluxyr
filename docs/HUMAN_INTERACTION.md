@@ -1,5 +1,19 @@
 # Human interaction review
 
+## Input limits
+
+`ask_human` accepts a question of 1–500 characters and, optionally, 2–6 plain
+string choices of 1–100 characters each. Labels must not be blank. Keep option
+labels short and put explanations in the question or the preceding chat message.
+These limits are included in the model-facing schema and checked before dispatch.
+
+For Python action helpers, `key` and `title` accept up to 100 characters,
+`message` up to 500, `placeholder` up to 200, and each choice label up to 100.
+The complete interaction payload is limited to 64,000 bytes; put large preview
+files under `data_dir`. User free-text responses accept up to 10,000 characters.
+
+## Design background
+
 The updated Fluxyr source (`fluxyr-work2/backend/prompts/skill_build.md` and `backend/res_templates/approval_helper.py`) describes interaction as a pause inside an action: choices, free text, or confirmation, followed by re-invocation of the same action with the decision and retained context. It supports up to five rounds. Previews can belong to selectable candidates; standalone render_preview is only presentation.
 
 The initial Agent port diverged in four places:

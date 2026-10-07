@@ -1,10 +1,38 @@
 """Vault cards carry metadata only; private form saves never enter brain state."""
 
+from jsonschema import validate
 from sqlalchemy import select
 
 from ..models import Decision, Job, VaultItem
 from ..vault import TYPES
 from .envelope import build_approval_pua
+
+OAUTH_PREFILL_SCHEMA = {
+    "type": "object",
+    "description": "Public OAuth settings from the provider documentation, prefilled for user review. Never include client IDs, secrets, tokens or certificate contents.",
+    "properties": {
+        "token_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": r"^https?://\S+$",
+        },
+        "authorization_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": r"^https?://\S+$",
+        },
+        "scope": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "Space-separated OAuth scopes.",
+        },
+        "token_auth_method": {
+            "type": "string",
+            "enum": ["client_secret_post", "client_secret_basic"],
+        },
+    },
+    "additionalProperties": False,
+}
 
 
 def credential_request(
@@ -15,7 +43,10 @@ def credential_request(
     vault_item_id=None,
     oauth_grant_type=None,
     mtls_certificate_id=None,
+    oauth_config=None,
 ):
+    if oauth_config is not None:
+        validate(oauth_config, OAUTH_PREFILL_SCHEMA)
     if action == "create":
         if vault_item_type not in TYPES:
             raise ValueError(
@@ -46,10 +77,11 @@ def credential_request(
                 item["oauth_config"] = vault.oauth_configuration(existing, session)
     else:
         raise ValueError("Credential requests support create or edit")
-    if oauth_grant_type or mtls_certificate_id:
+    if oauth_grant_type or mtls_certificate_id or oauth_config is not None:
         if item["vault_item_type"] != "oauth2":
             raise ValueError("OAuth options require an OAuth credential")
         config = item.setdefault("oauth_config", {})
+        config.update(oauth_config or {})
         if oauth_grant_type:
             if oauth_grant_type not in ("authorization_code", "client_credentials"):
                 raise ValueError("Unsupported OAuth grant type")

@@ -8,6 +8,7 @@ from jsonschema import SchemaError, ValidationError, validate
 from ..inspection import execution_details, execution_list, skill_context
 from ..interactions.human import action_wait, human
 from ..models import Job
+from ..runtime.human_protocol import MAX_CHOICE_LABEL_LENGTH, MAX_MESSAGE_LENGTH
 from .contracts import ToolExecutionContext
 from .web import WebBrowserToolProvider
 
@@ -217,15 +218,25 @@ class Registry:
         )
         add(
             "ask_human",
-            'Ask a question and wait durably for a human answer. Optional choices are plain strings, for example ["Rebuild", "Keep current version"]. Never proceed until the human answers.',
+            'Ask a question (up to 500 characters) and wait durably for an answer. Optional choices are 2–6 plain string labels, each up to 100 characters, for example ["Rebuild", "Keep current version"]. Put explanations in question, not in the labels. Never proceed until the human answers.',
             {
-                "question": {"type": "string", "minLength": 1},
+                "question": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": MAX_MESSAGE_LENGTH,
+                    "pattern": r"\S",
+                },
                 "choices": {
                     "type": "array",
-                    "items": {"type": "string", "minLength": 1},
+                    "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": MAX_CHOICE_LABEL_LENGTH,
+                        "pattern": r"\S",
+                    },
                     "minItems": 2,
                     "maxItems": 6,
-                    "description": "2–6 answer labels for a single-choice interaction. Omit choices for free-text input; do not mix the two.",
+                    "description": "2–6 short answer labels, at most 100 characters each. Put context in question (max 500 characters). Omit choices for free-text input; do not mix the two.",
                 },
             },
             ["question"],
@@ -413,17 +424,18 @@ class Registry:
             lambda a, *_: e.vault.check(**a),
             True,
         )
-        from ..interactions.vault import credential_request
+        from ..interactions.vault import OAUTH_PREFILL_SCHEMA, credential_request
         from ..vault import TYPES
 
         add(
             "manage_vault_credential",
-            "Open an embedded private Vault form and wait for the user to save or cancel. Use create when a required credential is missing, edit for an existing ID from vault_list. Supply only metadata; never ask for, read or pass credential values in chat or ask_human. Returns only the saved Vault ID/name. Declare that name in action secrets and use secret(name) at runtime.",
+            "Open an embedded private Vault form and wait for the user to save or cancel. Use create when a required credential is missing, edit for an existing ID from vault_list. Prefill public OAuth settings (token_url, authorization_url, scope, token_auth_method) in oauth_config from the provider documentation. Never pass credential values in chat or ask_human. Returns only the saved Vault ID/name. Declare that name in action secrets and use secret(name) at runtime.",
             {
                 "action": {"type": "string", "enum": ["create", "edit"]},
                 "vault_item_type": {"type": "string", "enum": list(TYPES)},
                 "suggested_name": {"type": "string", "maxLength": 200},
                 "vault_item_id": S,
+                "oauth_config": OAUTH_PREFILL_SCHEMA,
                 "oauth_grant_type": {
                     "type": "string",
                     "enum": ["authorization_code", "client_credentials"],

@@ -289,3 +289,93 @@ def test_create_request_cannot_overwrite_existing_item(make_app):
     assert response.status_code == 400
     assert e.vault.resolve("weather")["value"] == "keep-original"
     assert_private(e, adapter, SECRET)
+
+
+@pytest.mark.parametrize("grant", ["authorization_code", "client_credentials"])
+def test_public_oauth_prefill_is_reviewed_before_private_save(make_app, grant):
+    config = {
+        "token_url": "https://api.example.com/token",
+        "scope": "weather.read",
+        "token_auth_method": "client_secret_basic",
+    }
+    if grant == "authorization_code":
+        config["authorization_url"] = "https://api.example.com/authorize"
+    app, e, adapter, job, entry = request_card(
+        make_app,
+        {
+            "action": "create",
+            "vault_item_type": "oauth2",
+            "suggested_name": "weather",
+            "oauth_grant_type": grant,
+            "oauth_config": config,
+        },
+    )
+    assert e.vault.list() == []
+    assert entry["_result"]["__pua__"]["payload"]["oauth_config"] == {
+        **config,
+        "grant_type": grant,
+    }
+    body = {
+        "name": "weather",
+        "kind": "oauth2",
+        "content": {
+            **config,
+            "grant_type": grant,
+            "scope": "weather.read alerts.read",
+            "client_id": SECRET + "-id",
+            "client_secret": SECRET,
+        },
+    }
+    response = app.test_client().post(endpoint(job, entry), json=body)
+    assert response.status_code == 200, response.json
+    assert e.vault.get_optional("weather")["scope"] == "weather.read alerts.read"
+    assert execute_next(e)["status"] == "succeeded"
+    assert_private(e, adapter, SECRET)
+
+
+def test_oauth_edit_prefill_preserves_saved_credential_until_submit(make_app):
+    app, e, adapter = make_app()
+    item = e.vault.put(
+        "weather",
+        "oauth2",
+        {
+            "grant_type": "client_credentials",
+            "client_id": SECRET + "-id",
+            "client_secret": SECRET,
+            "token_url": "https://api.example.com/old-token",
+        },
+    )
+    adapter.replies = [
+        [
+            (
+                TOOL,
+                {
+                    "action": "edit",
+                    "vault_item_id": item["id"],
+                    "oauth_config": {"token_url": "https://api.example.com/new-token"},
+                },
+            )
+        ],
+        "Updated",
+    ]
+    e.store.enqueue("Update OAuth endpoint")
+    job = execute_next(e)
+    entry = job["brain"]["pending_tools"][0]
+    config = entry["_result"]["__pua__"]["payload"]["oauth_config"]
+    assert config["grant_type"] == "client_credentials"
+    assert config["token_url"] == "https://api.example.com/new-token"
+    assert e.vault.get_optional("weather")["token_url"].endswith("old-token")
+    response = app.test_client().post(
+        endpoint(job, entry),
+        json={
+            "name": "weather",
+            "kind": "oauth2",
+            "content": config,
+        },
+    )
+    assert response.status_code == 200, response.json
+    saved = e.vault.get_optional("weather")
+    assert saved["token_url"].endswith("new-token")
+    assert saved["client_secret"] == SECRET
+    assert execute_next(e)["status"] == "succeeded"
+    assert_private(e, adapter, SECRET)

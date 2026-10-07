@@ -4,6 +4,7 @@ import { Button, Input, Textarea } from "./components";
 import { Label } from "./ui/label/label";
 import { Separator } from "./ui/separator/separator";
 import { SelectField, SelectOption } from "./form-select";
+import { oauthPrefill } from "./vault-prefill";
 
 export const vaultKinds: Record<string, string> = {
   text: "Secret text",
@@ -99,15 +100,7 @@ export function VaultForm({
     name: initial.name || "",
     kind: initial.kind || "text",
     content:
-      initial.kind === "oauth2"
-        ? {
-            grant_type:
-              initial.oauth_config?.grant_type || "authorization_code",
-            token_auth_method:
-              initial.oauth_config?.token_auth_method || "client_secret_post",
-            certificate_id: initial.oauth_config?.certificate_id || "",
-          }
-        : {},
+      initial.kind === "oauth2" ? oauthPrefill(initial.oauth_config) : {},
   }));
   const [certificates, setCertificates] = useState<RecordData[]>([]);
   const [certificateError, setCertificateError] = useState("");

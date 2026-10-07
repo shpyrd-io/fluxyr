@@ -2,7 +2,7 @@
 
 Fluxyr ships with **37 built-in tools** across the agent and the isolated skill
 builder. They cover research, files, skills, credentials, human interaction,
-routines, execution inspection and memory. This reference describes Fluxyr 0.1.0.
+routines, execution inspection and memory. This reference follows the current source.
 
 Call `list_tools` in an agent conversation to inspect the actual available names,
 descriptions and JSON input schemas, including active skill actions and tools
@@ -87,14 +87,36 @@ Supply either the structured field or its JSON-text alternative, never both.
 | --- | --- | --- | --- |
 | `vault_list` | Both | None | List credential IDs, names, types and safe OAuth configuration, including the flow and linked certificate. Never returns secret values. |
 | `check_vault_credential` | Agent | `name` | Check readiness and return safe diagnostics. OAuth checks may obtain or refresh a token using configured mTLS; they do not call the resource API or test action code. |
-| `manage_vault_credential` | Both | `action`, `vault_item_type?`, `suggested_name?`, `vault_item_id?`, `oauth_grant_type?`, `mtls_certificate_id?` | Open a private embedded create/edit form and wait for save or cancellation. Saved secret values do not enter the chat context. |
-| `ask_human` | Both | `question`, `choices?` | Pause durably for an answer. Omit choices for free text, or provide 2–6 string labels for a single-choice interaction. |
+| `manage_vault_credential` | Both | `action`, `vault_item_type?`, `suggested_name?`, `vault_item_id?`, `oauth_grant_type?`, `mtls_certificate_id?`, `oauth_config?` | Open a private embedded create/edit form and wait for save or cancellation. Prefill public OAuth settings for review; saved secret values do not enter the chat context. |
+| `ask_human` | Both | `question`, `choices?` | Pause durably for an answer. Question: 1–500 characters. Omit choices for free text, or provide 2–6 non-empty string labels of at most 100 characters each. Put explanations in the question rather than long option labels. |
 
 For `manage_vault_credential`, `action` is `create` or `edit`. Creation requires a
 `vault_item_type`; editing requires an existing `vault_item_id` from `vault_list`.
 Supported types are `text`, `key_password`, `oauth2`, `access_token`,
 `certificate_pem` and `certificate_pfx`. OAuth can preselect `authorization_code`
 or `client_credentials` and link an existing PEM/PFX credential for mTLS.
+
+`oauth_config` accepts only public `token_url`, `authorization_url`, `scope` and
+`token_auth_method` (`client_secret_post` or `client_secret_basic`). URLs accept
+up to 2,048 characters and scopes up to 2,000. Prefills work for create and edit;
+the user can change them and must save the form before anything is persisted.
+Client IDs, secrets, tokens and certificate contents remain private form inputs.
+
+```json
+{
+  "action": "create",
+  "vault_item_type": "oauth2",
+  "suggested_name": "weather_oauth",
+  "oauth_grant_type": "client_credentials",
+  "oauth_config": {
+    "token_url": "https://api.example.com/oauth/token",
+    "scope": "weather.read",
+    "token_auth_method": "client_secret_post"
+  }
+}
+```
+
+Replace the example endpoint and scopes with those from the provider documentation.
 
 Use `ask_human` for clarification while the agent works or builds a skill.
 Interactions inside Python actions use the runtime helpers `request_input`,

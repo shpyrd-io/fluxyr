@@ -2804,11 +2804,15 @@ input[type="file"]::file-selector-button {
 .flow-batch .flow-junction { padding: 8px; }
 .flow-junction.join.failed { color: var(--color-red); }
 
-.vault-form fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 1rem; }
+.vault-form { container-type: inline-size; min-width: 0; max-width: 100%; }
+.vault-form fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+.vault-form fieldset > label, .vault-form label > div { min-width: 0; max-width: 100%; }
 .vault-request .human-heading h3 { display: flex; align-items: center; gap: .5rem; }
-.vault-request .vault-form { margin-top: 1rem; }
-.vault-form small { text-transform: none; letter-spacing: normal; }
-@media (min-width: 640px) {
+.vault-request { min-width: 0; }
+.vault-request .vault-form { margin-top: 1rem; max-height: none; }
+.vault-form small { text-transform: none; letter-spacing: normal; overflow-wrap: anywhere; }
+.vault-form .dialog-actions { flex-wrap: wrap; }
+@container (min-width: 560px) {
   .vault-form .vault-oauth-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .vault-oauth-fields .vault-wide { grid-column: 1 / -1; }
 }

@@ -4,7 +4,13 @@ import copy
 import uuid
 from urllib.parse import quote
 
-from ..runtime.human_protocol import MAX_ROUNDS, normalize_request, response_for
+from ..runtime.human_protocol import (
+    MAX_MESSAGE_LENGTH,
+    MAX_ROUNDS,
+    MAX_TITLE_LENGTH,
+    normalize_request,
+    response_for,
+)
 from .envelope import build_approval_pua
 
 
@@ -12,8 +18,8 @@ def human(question, choices=None, preflight=False):
     request = normalize_request(
         {
             "key": "workbench",
-            "title": question[:100],
-            "message": question[:500],
+            "title": question[:MAX_TITLE_LENGTH],
+            "message": question[:MAX_MESSAGE_LENGTH],
             "variant": "confirm-reject"
             if preflight
             else "choices"

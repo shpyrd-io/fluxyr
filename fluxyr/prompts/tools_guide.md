@@ -38,6 +38,8 @@ For credentials, declare the Vault item names in the action's secrets array, the
 
 ## Human interaction inside an action
 
+For agent/build-time clarification, ask_human.question is limited to 500 characters. Optional choices must be 2–6 non-empty plain string labels of at most 100 characters each. Keep labels short; put explanations in question or the preceding conversation. Omit choices for free text. If validation reports a length limit, shorten the affected field before retrying; do not repeat the same invalid call. For in-action helpers below, key/title are limited to 100 characters, message to 500, placeholder to 200, and each choice label to 100.
+
 Human input is normal workflow, not just a permission gate. Keep one cohesive workflow in ONE action: prepare → pause → receive the human response → continue → output. Do not split it into prepare/reveal actions or ask the workbench to carry state just to cross a pause. The runtime resumes the same pinned action version, original parameters and tool-call identity, without a model step between its interaction rounds.
 
 Use these local helpers from `fluxyr`, each with a distinct, stable `key`:

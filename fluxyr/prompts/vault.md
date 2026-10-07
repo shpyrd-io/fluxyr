@@ -4,6 +4,10 @@ Credential setup: use vault_list to inspect names, types and safe OAuth configur
 
 ### Vault types and runtime content
 
+Prefill known PUBLIC OAuth settings using manage_vault_credential.oauth_config: token_url, authorization_url (authorization-code flow only), scope (space-separated), and token_auth_method (client_secret_post or client_secret_basic). Use the provider's documented URLs and scopes; do not make the user retype configuration you already verified. This works for create and edit; all values remain editable and nothing is saved until the user submits the form. Keep oauth_grant_type and mtls_certificate_id as separate tool parameters. Never put client_id, client_secret, access_token, refresh_token, passwords or certificate contents into oauth_config; the user enters those privately.
+
+Example: manage_vault_credential(action="create", vault_item_type="oauth2", suggested_name="weather_oauth", oauth_grant_type="client_credentials", oauth_config={"token_url":"https://api.example.com/oauth/token","scope":"weather.read","token_auth_method":"client_secret_post"}). Replace the example URL/scope with the actual provider documentation.
+
 `vault_list` exposes item ID, name and type, never content. These are the supported `vault_item_type` values for `manage_vault_credential`. The shapes below describe fields inside `secret("name")` **in generated Python**, not values you can request in chat. Declare every referenced credential name in the action's `secrets` array. Never include secret literals in code, specs, tool arguments, previews, logs or output.
 
 | Type | Fields in the private form / runtime dictionary | Use |

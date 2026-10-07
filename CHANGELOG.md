@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Prefill public OAuth settings in private credential forms for creation and editing.
+- Expose human-question and choice-label limits in tool schemas and agent instructions.
+- Keep embedded credential forms inside their interaction card and adapt columns to available width.
+
 ## 0.1.0 — 2026-10-07
 
 First public framework release.

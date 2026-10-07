@@ -3,20 +3,23 @@
 import json
 
 MAX_ROUNDS = 5
+MAX_TITLE_LENGTH = 100
+MAX_MESSAGE_LENGTH = 500
+MAX_CHOICE_LABEL_LENGTH = 100
 
 
 def normalize_request(request):
     r = dict(request)
     if r.get("variant") not in ("continue", "choices", "confirm-reject"):
         raise ValueError("Unknown human interaction variant")
-    for field, limit in [("key", 100), ("title", 100)]:
+    for field, limit in [("key", 100), ("title", MAX_TITLE_LENGTH)]:
         if (
             not isinstance(r.get(field), str)
             or not r[field].strip()
             or len(r[field]) > limit
         ):
             raise ValueError(f"{field} must contain 1–{limit} characters")
-    for field, limit in [("message", 500), ("placeholder", 200)]:
+    for field, limit in [("message", MAX_MESSAGE_LENGTH), ("placeholder", 200)]:
         if r.get(field) is not None and (
             not isinstance(r[field], str) or len(r[field]) > limit
         ):
@@ -52,9 +55,11 @@ def normalize_request(request):
             if (
                 not isinstance(c.get("label"), str)
                 or not c["label"].strip()
-                or len(c["label"]) > 100
+                or len(c["label"]) > MAX_CHOICE_LABEL_LENGTH
             ):
-                raise ValueError("Each choice needs a label up to 100 characters")
+                raise ValueError(
+                    f"Each choice needs a label up to {MAX_CHOICE_LABEL_LENGTH} characters"
+                )
             if c.get("preview_type") not in (None, "text", "html", "image", "file"):
                 raise ValueError("Unsupported choice preview type")
             if c.get("content") is not None and not isinstance(c["content"], str):
