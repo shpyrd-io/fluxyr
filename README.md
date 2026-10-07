@@ -1,7 +1,7 @@
 # Fluxyr
 
 A Python framework for agents that expand their own capabilities and repair their
-skills through a self-healing workflow. Describe what you need in the web workbench:
+skills through a self-healing workflow. Describe what you need in the chat:
 Fluxyr can research an integration, generate Python actions, test them and save them
 as reusable skills.
 
@@ -47,12 +47,12 @@ if __name__ == "__main__":
 ```
 
 Run `python app.py` and open **http://localhost:5050**.
-The agent is already there in the workbench, ready for you to configure its skills,
+The agent is ready for you to configure its skills,
 credentials and routines and start a conversation.
 
 ## Build skills through conversation
 
-Ask Fluxyr to create an integration in the workbench, for example:
+Ask Fluxyr to create an integration in the chat, for example:
 
 > Create a weather skill for my provider's API, with a forecast action accepting
 > a city. Ask me for the documentation URL and help me configure any credentials
@@ -61,7 +61,7 @@ Ask Fluxyr to create an integration in the workbench, for example:
 
 Fluxyr turns the request into skill instructions and a technical specification.
 A dedicated builder generates the Python actions and declares their dependencies
-and Vault credentials. The workbench inspects the generated code, runs tests,
+and Vault credentials. The agent inspects the generated code, runs tests,
 checks the results and activates a tested version for future conversations and
 routines. You can follow the build and execution progress in the UI.
 
@@ -97,7 +97,7 @@ for provider endpoints and other options.
 
 Point `FLUXYR_SKILLS_DIR` at a folder to load its `.md` files as agent instructions.
 Use `@app.tool()` to expose Python functions and standard Flask routes for your API.
-The workbench can also build and test Python actions, manage credentials in Vault,
+The agent can also build and test Python actions, manage credentials in Vault,
 request human input and schedule routines.
 
 - [Minimal application](examples/minimal)
