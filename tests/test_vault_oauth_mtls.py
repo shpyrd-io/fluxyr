@@ -39,6 +39,30 @@ def mtls_server(tmp_path, monkeypatch):
                 x509.BasicConstraints(ca=issuer is None, path_length=None),
                 critical=True,
             )
+            .add_extension(
+                x509.SubjectKeyIdentifier.from_public_key(key.public_key()),
+                critical=False,
+            )
+            .add_extension(
+                x509.AuthorityKeyIdentifier.from_issuer_public_key(
+                    issuer_key.public_key()
+                ),
+                critical=False,
+            )
+            .add_extension(
+                x509.KeyUsage(
+                    digital_signature=True,
+                    content_commitment=False,
+                    key_encipherment=issuer is not None,
+                    data_encipherment=False,
+                    key_agreement=False,
+                    key_cert_sign=issuer is None,
+                    crl_sign=issuer is None,
+                    encipher_only=False,
+                    decipher_only=False,
+                ),
+                critical=True,
+            )
         )
         if issuer:
             cert = cert.add_extension(
