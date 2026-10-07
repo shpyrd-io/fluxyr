@@ -104,6 +104,7 @@ request human input and schedule routines.
 
 - [Minimal application](examples/minimal)
 - [Framework API and configuration](docs/FRAMEWORK.md)
+- [Native tools reference](docs/TOOLS.md)
 - [Python actions and credentials](docs/ACTIONS.md)
 - [Human interaction](docs/HUMAN_INTERACTION.md)
 - [Docker and execution protection](docs/EXECUTION_PROTECTION.md)
