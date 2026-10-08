@@ -154,10 +154,12 @@ class Skills:
             raise ValueError("Action source cannot be empty")
         ast.parse(args["source"])
         compile(args["source"], "action.py", "exec")
-        validate_secret_references(args["source"], args.get("secrets"))
         if args["parameters"].get("type") != "object":
             raise ValueError("Parameters must be an object JSON Schema")
         validator_for(args["parameters"]).check_schema(args["parameters"])
+        validate_secret_references(
+            args["source"], args.get("secrets"), args["parameters"]
+        )
         with self.db.transaction() as s:
             declared = set(args.get("secrets") or [])
             existing = (
@@ -281,7 +283,9 @@ class Skills:
             version = s.get(ToolVersion, version_id, with_for_update=True)
             if not version or version.state not in ("tested", "active"):
                 raise ValueError("A passing test is required before activation")
-            validate_secret_references(version.source, version.secrets)
+            validate_secret_references(
+                version.source, version.secrets, version.parameters
+            )
             result = version.test_result or {}
             if result.get("success") is False or output_failed(result.get("output")):
                 raise ValueError(

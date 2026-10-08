@@ -443,7 +443,7 @@ class Registry:
                 "secrets": {
                     "type": "array",
                     "items": S,
-                    "description": "Exact existing Vault item names returned by vault_list. Each secret(name) in Python MUST use one of these identical names. No logical aliases or UUIDs.",
+                    "description": "Optional legacy fixed Vault names, all resolved before execution. For dynamic selection, use a top-level string parameter with x-vault: true, pass a Vault item ID per call and read secret(parameter_name). Do not list parameter names, IDs, alternatives or placeholders here.",
                 },
             },
             ["skill_id", "name", "description", "source"],
@@ -613,7 +613,7 @@ class Registry:
 
         add(
             "manage_vault_credential",
-            "Open an embedded private Vault form and wait for the user to save or cancel. Use create when a required credential is missing, edit for an existing ID from vault_list. Prefill public OAuth settings (token_url, authorization_url, scope, token_auth_method) in oauth_config from the provider documentation. Never pass credential values in chat or ask_human. Returns only the saved Vault ID/name. Declare that name in action secrets and use secret(name) at runtime.",
+            "Open an embedded private Vault form and wait for the user to save or cancel. Use create when a required credential is missing, edit for an existing ID from vault_list. Prefill public OAuth settings (token_url, authorization_url, scope, token_auth_method) in oauth_config from the provider documentation. Never pass credential values in chat or ask_human. Returns only the saved Vault ID/name. Pass the saved ID to an x-vault action parameter and read secret(parameter_name) at runtime; legacy fixed bindings may declare the saved name in secrets.",
             {
                 "action": {"type": "string", "enum": ["create", "edit"]},
                 "vault_item_type": {

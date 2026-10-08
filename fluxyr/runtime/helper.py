@@ -12,8 +12,11 @@ approval_response = _payload.get("approval_response")
 
 
 def secret(name):
+    """Read a declared x-vault parameter binding or a legacy fixed Vault name."""
     if name not in _payload.get("secrets", {}):
-        raise KeyError(f"Secret {name!r} was not declared by this action")
+        raise KeyError(
+            f"Secret {name!r} was not declared by this action or its Vault parameter was not supplied"
+        )
     return _payload["secrets"][name]
 
 
@@ -65,7 +68,9 @@ def _interact(variant, title, *, key, context=None, **fields):
     )
     encoded = json.dumps({"request": request, "responses": _responses})
     if len(encoded) > 80000:
-        raise ValueError("Human continuation exceeds 80 KB; keep large artifacts in data_dir")
+        raise ValueError(
+            "Human continuation exceeds 80 KB; keep large artifacts in data_dir"
+        )
     print("__FLUXYR_WAIT__" + encoded, flush=True)
     sys.exit(75)
 

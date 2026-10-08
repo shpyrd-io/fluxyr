@@ -64,7 +64,7 @@ directory is separate from this persistent directory. See
 | `build_skill` | Agent | `skill_id` | Dispatch the isolated builder for a saved specification. The parent conversation waits durably and resumes with the candidate versions. |
 | `rebuild_action` | Agent | `skill_id`, `action_id` | Rebuild one action from the updated specification, preserving the other actions and existing active versions. |
 | `submit_plan` | Builder | `skill_id`, `actions` | Save the ordered build plan before code generation. Each action has a `name` and `description`. |
-| `create_action` | Builder | `skill_id`, `name`, `description`, `source`, `parameters` or `parameters_json`; `dependencies?`, `secrets?`, `requires_approval?` | Save an immutable Python candidate with its input JSON Schema, pip requirements and declared Vault names. |
+| `create_action` | Builder | `skill_id`, `name`, `description`, `source`, `parameters` or `parameters_json`; `dependencies?`, `secrets?`, `requires_approval?` | Save an immutable Python candidate with its input JSON Schema, pip requirements, dynamic `x-vault` selectors or legacy fixed Vault names. |
 | `test_action` | Agent | `version_id`, `params` or `params_json` | Execute a candidate with real inputs and return the execution result, errors and logs. Tests can have real effects. |
 | `activate_action` | Agent | `version_id` | Publish a version with a passing test so its callable action becomes available. |
 | `update_action_description` | Agent | `action_id`, `description` | Improve an action's description using observed behavior, without changing its Python code. |
@@ -74,8 +74,64 @@ The usual flow is `create_skill` → `build_skill` → inspect → `test_action`
 receives the resulting candidates for validation. Builds do not activate actions
 automatically. A repair follows `update_skill` → `rebuild_action` → test → activate.
 
-Use the actual IDs and callable names returned by these tools. `secrets` contains
-exact existing Vault names, matching `secret(name)` in the Python source.
+Use the actual IDs and callable names returned by these tools. Prefer dynamic
+Vault parameters for actions that can run with different accounts or environments.
+
+### Selecting credentials per action call
+
+Mark a top-level string property in `parameters` (or `parameters_json`) with
+`"x-vault": true`:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "credential": {
+      "type": "string",
+      "x-vault": true,
+      "description": "Vault item ID for the selected Control Tower bearer token"
+    }
+  },
+  "required": ["credential"]
+}
+```
+
+The agent finds the item using `vault_list` metadata (name, ID, type and safe
+configuration), then calls the action with `{"credential": "<Vault item UUID>"}`.
+It should ask the user when the intended account or environment is ambiguous.
+The generated Python accesses the bound content dictionary:
+
+```python
+from fluxyr import params, secret
+
+credential_id = params["credential"]  # Still only the selected ID.
+token = secret("credential")["value"]  # For a text Vault item.
+# Use token in the HTTP request; never output or log it.
+```
+
+Use `access_token` instead of `value` for OAuth/access-token items. OAuth refresh
+and linked mTLS configuration continue to be handled by Vault. Passkeys are still
+restricted to the browser authenticator.
+
+Only selected items are resolved, privately, before Python starts. The caller's
+parameters, model context and execution history contain IDs, not decrypted
+contents. Existing output/log redaction also covers these resolved values.
+Credentials are re-resolved privately when a human interaction resumes the same
+call. New or renamed items can be selected without rebuilding the action.
+
+Vault parameters must be top-level strings with no default. Use `required` for
+mandatory selectors; omitting an optional selector creates no secret binding.
+Do not use nested selectors, fixed ID enums, or the same parameter name as a
+fixed secret. Do not call `secret(params["credential"])`: the helper accepts the
+**parameter name**, not its ID.
+
+Legacy `secrets` still contains exact existing Vault names, matching
+`secret("same name")` in Python. All fixed entries are resolved on every call,
+so never add nonexistent placeholders or a list of alternative environments.
+To convert an existing fixed action, update its spec and create/test/activate
+one version with an x-vault parameter; subsequent credential changes need no
+rebuild. Continuous Worker listeners retain their separate fixed-name
+`ctx.secret(name)` contract.
 `requires_approval` controls preflight approval, separately from questions asked
 inside an action. See [the action contract](ACTIONS.md).
 

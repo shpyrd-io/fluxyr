@@ -315,17 +315,26 @@ class Vault:
                 raise ValueError("Passkey private keys are available only to the browser authenticator")
             return self.decrypt(item.content) if item else None
 
-    def resolve(self, name):
+    def resolve_id(self, item_id):
+        """Resolve an explicitly selected item without depending on its display name."""
+        if not isinstance(item_id, str) or not item_id.strip():
+            raise ValueError("Vault item ID must be a non-empty string")
+        return self.resolve("", item_id=item_id)
+
+    def resolve(self, name, *, item_id=None):
         if self.db.sqlite:
-            return self._resolve_sqlite(name)
+            return self._resolve_sqlite(name, item_id=item_id)
         with self.db.transaction() as s:
             item = s.scalar(
-                select(VaultItem).where(VaultItem.name == name).with_for_update()
+                select(VaultItem)
+                .where(VaultItem.id == item_id if item_id is not None else VaultItem.name == name)
+                .with_for_update()
             )
             if not item:
                 raise ValueError(f"Vault item not found: {name}")
             if item.type == "passkey":
                 raise ValueError("Use browser_use_passkey for this credential")
+            name = item.name
             content = self.decrypt(item.content)
             if item.type == "oauth2" and (
                 not content.get("access_token")
@@ -345,18 +354,25 @@ class Vault:
                 item.content = self.encrypt(content)
             return content
 
-    def _resolve_sqlite(self, name):
+    def _resolve_sqlite(self, name, *, item_id=None):
         from .runtime.python_runner import lock_for
 
         # SQLite has one writer. Keep network token renewal outside its write
         # transaction so the UI, cancellation and other jobs remain responsive.
-        with lock_for(("vault-oauth", str(self.db.engine.url), name)):
+        if item_id is None:
             with self.db.transaction() as s:
-                item = s.scalar(select(VaultItem).where(VaultItem.name == name))
+                item_id = s.scalar(select(VaultItem.id).where(VaultItem.name == name))
+            if item_id is None:
+                raise ValueError(f"Vault item not found: {name}")
+        # Name and ID selectors must share the same OAuth refresh lock.
+        with lock_for(("vault-oauth", str(self.db.engine.url), item_id)):
+            with self.db.transaction() as s:
+                item = s.get(VaultItem, item_id)
                 if not item:
                     raise ValueError(f"Vault item not found: {name}")
                 if item.type == "passkey":
                     raise ValueError("Use browser_use_passkey for this credential")
+                name = item.name
                 original = item.content
                 item_id = item.id
                 content = self.decrypt(original)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.8 — 2026-10-08
+
+- Add per-call Vault credential selection through top-level `x-vault` string parameters. Callers pass item IDs; Python reads private content with `secret(parameter_name)`. Preserve fixed `secrets`, OAuth/mTLS resolution, redaction and human continuations without binding reusable actions to credential display names.
+
 ## 0.9.7 — 2026-10-08
 
 - Load SQLite only when migrating a SQLite database, so PostgreSQL installations can start without the system SQLite library.

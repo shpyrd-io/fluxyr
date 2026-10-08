@@ -6,7 +6,48 @@ from functools import lru_cache
 from pathlib import Path
 
 
-def validate_secret_references(source, secrets):
+def vault_parameters(parameters, secrets=None):
+    """Explicit top-level Vault selectors; model-visible values remain item IDs."""
+    properties = (parameters or {}).get("properties", {})
+    selected = set()
+
+    def visit(value, top_level=False):
+        if isinstance(value, dict):
+            if "x-vault" in value:
+                if (
+                    value["x-vault"] is not True
+                    or not top_level
+                    or value.get("type") != "string"
+                ):
+                    raise ValueError(
+                        "x-vault must be true on a top-level string parameter"
+                    )
+                if "default" in value:
+                    raise ValueError(
+                        "Vault parameters must be selected explicitly, without defaults"
+                    )
+            for key, child in value.items():
+                if key != "x-vault":
+                    visit(child)
+        elif isinstance(value, list):
+            for child in value:
+                visit(child)
+
+    for name, prop in properties.items():
+        visit(prop, top_level=True)
+        if isinstance(prop, dict) and prop.get("x-vault") is True:
+            selected.add(name)
+    for key, value in (parameters or {}).items():
+        if key != "properties":
+            visit({key: value})
+    if selected.intersection(secrets or []):
+        raise ValueError(
+            "Vault parameter names must not collide with fixed action secrets"
+        )
+    return selected
+
+
+def validate_secret_references(source, secrets, parameters=None):
     """Catch literal secret() names that differ from the declared Vault names.
 
     Dynamic names still use the runtime check. Aliased imports are supported;
@@ -50,11 +91,11 @@ def validate_secret_references(source, secrets):
         )
         if isinstance(name, ast.Constant) and isinstance(name.value, str):
             referenced.add(name.value)
-    missing = referenced - set(secrets or [])
+    missing = referenced - set(secrets or []) - vault_parameters(parameters, secrets)
     if missing:
         raise ValueError(
             f"secret() references undeclared Vault names: {', '.join(sorted(missing))}. "
-            "Use the exact same names from vault_list in both source and the action secrets array; aliases are not resolved."
+            "Use an x-vault parameter name in secret(parameter_name), or the exact same Vault name in source and the fixed action secrets array."
         )
 
 

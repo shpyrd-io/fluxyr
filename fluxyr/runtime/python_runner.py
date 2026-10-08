@@ -223,10 +223,24 @@ class PythonRunner:
         continuation=None,
         stage=None,
     ):
-        from .contracts import output_failed, validate_secret_references
+        from .contracts import (
+            output_failed,
+            validate_secret_references,
+            vault_parameters,
+        )
 
         stage = stage if stage is not None else {}
-        validate_secret_references(version["source"], version.get("secrets"))
+        validate_secret_references(
+            version["source"], version.get("secrets"), version.get("parameters")
+        )
+        selectors = vault_parameters(version.get("parameters"), version.get("secrets"))
+        for name in selectors:
+            if name in params and (
+                not isinstance(params[name], str) or not params[name].strip()
+            ):
+                raise ValueError(
+                    f"Vault parameter {name!r} must contain an item ID from vault_list"
+                )
         stage.update(phase="dependency_installation")
         python = self.environment(
             version.get("dependencies", []), emit, version["id"], stop
@@ -255,6 +269,32 @@ class PythonRunner:
                 )
                 raise ValueError(
                     f"Could not resolve Vault credential {name!r} ({type(exc).__name__}). Check its token endpoint, OAuth flow and certificate configuration in Vault. Python was not executed."
+                ) from None
+        # Keep caller params unchanged: only IDs enter history, effects and continuations.
+        # Values travel exclusively in the private subprocess stdin payload.
+        selected_items = {}
+        for name in sorted(selectors):
+            if name not in params:
+                continue
+            item_id = params[name]
+            stage.update(
+                phase="credential_resolution",
+                credential_parameter=name,
+                vault_item_id=item_id,
+                executed=False,
+            )
+            try:
+                if item_id not in selected_items:
+                    selected_items[item_id] = self.vault.resolve_id(item_id)
+                resolved[name] = selected_items[item_id]
+            except Exception as exc:  # noqa: BLE001 - never expose private resolver errors
+                stage["remediation"] = (
+                    "Use vault_list to select an existing credential ID for this parameter. "
+                    "Check its type, environment and OAuth/certificate setup; do not rebuild for a different credential."
+                )
+                raise ValueError(
+                    f"Could not resolve Vault parameter {name!r} ({type(exc).__name__}). "
+                    "Select an existing compatible Vault item ID and check its configuration. Python was not executed."
                 ) from None
         stage.clear()
         stage.update(phase="process_start", executed=False)
