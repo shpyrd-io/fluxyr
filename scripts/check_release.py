@@ -58,6 +58,7 @@ def main():
             assert "fluxyr/prompts/vault.md" in names
             for asset in (
                 "driver.mjs",
+                "passkeys.mjs",
                 "package.json",
                 "pnpm-lock.yaml",
                 "tool-schemas.json",

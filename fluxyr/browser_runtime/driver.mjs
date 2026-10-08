@@ -2,6 +2,7 @@
 import readline from "node:readline";
 import { createSessionCore } from "public-browser/lib/session-core.js";
 import { resolveElement } from "public-browser/tools/element-utils.js";
+import { passkeys } from "./passkeys.mjs";
 
 const send = (message) => process.stdout.write(JSON.stringify(message) + "\n");
 // Dependency diagnostics must never corrupt the protocol or record private CDP arguments.
@@ -16,6 +17,17 @@ const core = createSessionCore({
 const privateValues = new Set();
 const targets = new Map();
 const secrets = new Map();
+function requestPrivate(msg, type, payload = {}) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      secrets.delete(msg.id);
+      reject(new Error("secret_timeout"));
+    }, 15000);
+    secrets.set(msg.id, { resolve, reject, timer });
+    send({ type, id: msg.id, ...payload });
+  });
+}
+const passkey = passkeys({ core, onElement, requestPrivate });
 let sequence = 0;
 let closing = false;
 const allowed = new Set([
@@ -53,7 +65,7 @@ function redact(value) {
     );
   return value;
 }
-async function onElement(target, fn, args = []) {
+async function onElement(target, fn, args = [], userGesture = false) {
   const result = await core.browserSession.cdpClient.send(
     "Runtime.callFunctionOn",
     {
@@ -62,6 +74,7 @@ async function onElement(target, fn, args = []) {
       arguments: args.map((value) => ({ value })),
       returnByValue: true,
       silent: true,
+      userGesture,
     },
     target.resolvedSessionId,
   );
@@ -73,6 +86,7 @@ const fieldInfo = `function() {
   return {origin:w.location.origin, url:w.location.href, connected:this.isConnected,
     editable: (this instanceof w.HTMLInputElement || this instanceof w.HTMLTextAreaElement)
       && !this.disabled && !this.readOnly && this.type !== 'hidden',
+    clickable: !this.disabled && typeof this.click === 'function',
     visible:!!this.getClientRects().length};
 }`;
 async function validate(target) {
@@ -84,7 +98,7 @@ async function validate(target) {
   const info = await onElement(target, fieldInfo);
   if (
     !info?.connected ||
-    !info.editable ||
+    !(target.passkey ? info.clickable : info.editable) ||
     !info.visible ||
     info.origin !== target.origin ||
     info.url !== target.url
@@ -92,6 +106,19 @@ async function validate(target) {
     throw new Error("field_changed");
 }
 async function command(msg) {
+  if (msg.op === "passkey_recover") return passkey.run(msg);
+  if (msg.op === "passkey_register" || msg.op === "passkey_authenticate") {
+    const target = targets.get(msg.target_id);
+    targets.delete(msg.target_id);
+    if (!target?.passkey || target.origin !== msg.origin) throw new Error("request_expired");
+    try {
+      return await passkey.run(msg, target, validate);
+    } finally {
+      await core.browserSession.cdpClient.send("Runtime.releaseObject", {
+        objectId: target.objectId,
+      }, target.resolvedSessionId).catch(() => {});
+    }
+  }
   if (msg.op === "close") {
     await shutdown();
     return { closed: true };
@@ -120,7 +147,7 @@ async function command(msg) {
       result.content = result.content.filter((c) => c.type !== "image");
     return redact(result);
   }
-  if (msg.op === "prepare") {
+  if (msg.op === "prepare" || msg.op === "passkey_prepare") {
     await core.start();
     for (const [id, old] of targets)
       if (Date.now() > old.expires) {
@@ -144,7 +171,7 @@ async function command(msg) {
     const info = await onElement(element, fieldInfo);
     if (
       !info?.connected ||
-      !info.editable ||
+      !(msg.op === "passkey_prepare" ? info.clickable : info.editable) ||
       !info.visible ||
       info.origin !== msg.origin
     )
@@ -153,6 +180,7 @@ async function command(msg) {
     const target = {
       ...element,
       ...info,
+      passkey: msg.op === "passkey_prepare",
       tab: browser.sessionId,
       expires: Date.now() + 600000,
     };
@@ -234,6 +262,7 @@ async function shutdown() {
   secrets.clear();
   targets.clear();
   privateValues.clear();
+  passkey.clear();
   await core.close();
 }
 let chain = Promise.resolve();
@@ -268,6 +297,7 @@ input.on("line", (line) => {
         "secret_timeout",
         "private_input_unavailable",
         "session_limit",
+        "passkey_timeout",
       ]);
       send({
         id: msg.id,

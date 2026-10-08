@@ -199,3 +199,9 @@ that saved item. Values never go to `decision_url`, chat or ordinary `ask_human`
 Only safe delivery outcomes enter execution history. Both the approvals route
 and the `/api/jobs/{id}/private-input/{request_id}` alias require the configured
 approval Bearer key. See [browser setup and lifecycle](BROWSER.md).
+
+Passkey enrollment uses `kind=browser_passkey` and the same private-input endpoint.
+Confirm with `{"name":"Provider — Account — Environment"}`. This authorizes the
+registration button and encrypted Vault storage; no credential bytes appear in
+the request or response. Reject through `decision_url`. Enrollment recovery cards
+save an already-created credential without repeating its registration.

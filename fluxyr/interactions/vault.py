@@ -48,7 +48,7 @@ def credential_request(
     if oauth_config is not None:
         validate(oauth_config, OAUTH_PREFILL_SCHEMA)
     if action == "create":
-        if vault_item_type not in TYPES:
+        if vault_item_type not in TYPES or vault_item_type == "passkey":
             raise ValueError(
                 "Choose a supported vault_item_type for the new credential"
             )

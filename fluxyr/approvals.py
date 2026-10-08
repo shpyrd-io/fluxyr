@@ -17,7 +17,7 @@ def approval_view(job_id, session_id, entry):
     request_id = entry.get("_request_id") or entry["call_id"]
     base = f"/api/approvals/{quote(job_id, safe='')}/{quote(request_id, safe='')}"
     vault = entry.get("name") == "manage_vault_credential"
-    private = entry.get("name") == "browser_request_input"
+    private = entry.get("name") in ("browser_request_input", "browser_register_passkey")
     card = copy.deepcopy(entry["_result"]["__pua__"])
     assets = []
     for index, option in enumerate(card.get("payload", {}).get("choices", [])):
@@ -43,6 +43,8 @@ def approval_view(job_id, session_id, entry):
         "tool_name": entry.get("name"),
         "kind": "vault_credential"
         if vault
+        else "browser_passkey"
+        if entry.get("name") == "browser_register_passkey"
         else "browser_private_input"
         if private
         else "human",

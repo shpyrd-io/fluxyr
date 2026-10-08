@@ -42,12 +42,14 @@ const toolGroups: Record<string, string[]> = {
     "finish_execution",
     "ask_human",
   ],
-  Browser: ["browser", "browser_fill_private", "browser_request_input"],
+  Browser: ["browser", "browser_fill_private", "browser_request_input", "browser_register_passkey", "browser_use_passkey"],
   Vault: ["vault_list", "check_vault_credential", "manage_vault_credential"],
   Agent: ["list_tools"],
 };
 const toolSummaries: Record<string, string> = {
   browser: "Inspect and control headless Chrome, including page captures.",
+  browser_register_passkey: "Register a passkey with human confirmation and save it directly in Vault.",
+  browser_use_passkey: "Sign in using a Vault passkey without exposing its private key.",
   browser_fill_private:
     "Fill a browser field directly from Vault, including fresh OTP codes.",
   browser_request_input:

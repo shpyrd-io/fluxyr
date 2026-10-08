@@ -19,6 +19,8 @@ export function BrowserPrivateInput({
   const [error, setError] = useState("");
   const pua = pending._result?.__pua__ || {};
   const payload = pua.payload || {};
+  const passkey = payload.kind === "browser_passkey";
+  const [name, setName] = useState(payload.suggested_name || "");
   const id = pending._request_id || pending.call_id;
   async function respond(reject = false) {
     setBusy(true);
@@ -31,7 +33,9 @@ export function BrowserPrivateInput({
         "POST",
         reject
           ? { decision: "reject" }
-          : payload.vault_item_id
+          : passkey
+            ? { name }
+            : payload.vault_item_id
             ? {}
             : { value },
       );
@@ -56,14 +60,15 @@ export function BrowserPrivateInput({
         <h3>
           <LockKeyhole size={18} /> {pua.title}
         </h3>
-        <span>Private input</span>
+        <span>{passkey ? "Passkey enrollment" : "Private input"}</span>
       </div>
       <p>
         Destination: <strong>{payload.target?.origin}</strong>
       </p>
       <p className="muted">
-        The value goes directly to the browser. The agent receives only the
-        result.
+        {passkey
+          ? "Create a passkey in this browser and save it encrypted in Vault. Future routines can use it to sign in to this site. The agent never receives the private key."
+          : "The value goes directly to the browser. The agent receives only the result."}
       </p>
       {payload.target?.expires_at && (
         <p className="muted">
@@ -84,7 +89,14 @@ export function BrowserPrivateInput({
             void respond();
           }}
         >
-          {payload.vault_item_id ? (
+          {passkey ? (
+            <Label>
+              Vault name
+              <Input required maxLength={200} value={name} disabled={busy || !!payload.vault_item_id}
+                onChange={(e) => setName(e.target.value)} />
+              <small>{payload.vault_item_id ? "Retry saving the existing passkey; no new registration." : "Confirm to click the registration button on this site."}</small>
+            </Label>
+          ) : payload.vault_item_id ? (
             <p>
               Allow this browser to use{" "}
               {payload.vault_item_name || "the selected Vault credential"}?
@@ -109,7 +121,7 @@ export function BrowserPrivateInput({
               Decline
             </Button>
             <Button type="submit" disabled={busy}>
-              {payload.vault_item_id ? "Allow and continue" : "Send to browser"}
+              {passkey ? (payload.vault_item_id ? "Save existing passkey" : "Register and save passkey") : payload.vault_item_id ? "Allow and continue" : "Send to browser"}
             </Button>
           </div>
         </form>

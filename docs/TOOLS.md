@@ -1,6 +1,6 @@
 # Native tools
 
-Fluxyr ships with **45 built-in tools** and **3 optional browser tools** across the agent and the isolated skill
+Fluxyr ships with **45 built-in tools** and **5 optional browser tools** across the agent and the isolated skill
 builder. They cover research, files, skills, credentials, human interaction,
 routines, execution inspection and memory. This reference follows the current source.
 
@@ -206,3 +206,5 @@ Enabled with `FLUXYR_BROWSER_ENABLED=true`; see [installation and private input]
 | `browser` | Both | `tool`, `arguments_json?` | Call public-browser locally; `help` lists supported operations and `help` with `{"tool":"navigate"}` returns that operation's schema. `capture_image` returns a file for `read` or `render_preview`; `close` releases Chrome. Use `type` only for public text. |
 | `browser_fill_private` | Both | `origin`, `ref` or `selector`, `vault_item_id`, `field?`, `submit?` | Resolve a Vault value and fill the exact field through private pipes. TOTP items generate a fresh code just before filling. Returns outcome only. |
 | `browser_request_input` | Both | `origin`, `ref` or `selector`, `title?`, `vault_item_id?`, `field?`, `submit?` | Pause for private human input, or explicit consent to use a specified Vault item. The card is also surfaced in the caller's conversation when a builder requests it. |
+| `browser_register_passkey` | Both | `origin`, `ref` or `selector`, `suggested_name?`, `vault_item_id?` | Ask human confirmation, then register through the site's button and save the key directly in Vault. For recovery after a failed save, provide the pending Vault ID and omit the button. |
+| `browser_use_passkey` | Both | `origin`, `vault_item_id`, `ref` or `selector` | Restore a Vault passkey privately and click the passkey-login button. Returns assertion/storage outcome, not a guarantee of server acceptance. |

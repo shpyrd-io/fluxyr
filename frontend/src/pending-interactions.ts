@@ -28,7 +28,7 @@ export function pendingInteractions(
           p._status === "parked" &&
           !p._decision &&
           (job.session_id === session ||
-            ["manage_vault_credential", "browser_request_input"].includes(
+            ["manage_vault_credential", "browser_request_input", "browser_register_passkey"].includes(
               p.name,
             )),
       ),

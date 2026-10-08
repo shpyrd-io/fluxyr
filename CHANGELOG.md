@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Register passkeys inside Fluxyr's browser with human confirmation and direct encrypted Vault storage; restore them for later WebAuthn sign-in without exposing private keys to the model.
+- Persist signature counters and support retrying a failed Vault save while the browser retains the newly created credential.
+
 ## 0.9.3 — 2026-10-08
 
 - Add encrypted TOTP Vault items, private browser field filling and session-routed human input without putting values in model tool arguments or results.

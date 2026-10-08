@@ -38,8 +38,36 @@ def request_input(engine, job, args, stop):
     }, "wait"
 
 
+def request_registration(engine, job, args, stop):
+    args = dict(args)
+    name = args.pop("suggested_name", "")
+    item_id = args.pop("vault_item_id", None)
+    if item_id:
+        if args.get("ref") or args.get("selector"):
+            raise ValueError(
+                "Recovery saves the existing credential without clicking a registration button"
+            )
+        target = engine.browsers.passkeys.recovery_target(
+            job["session_id"], item_id, args["origin"]
+        )
+        name, _ = engine.browsers.passkeys._item(item_id)
+    else:
+        target = engine.browsers.passkeys.prepare(job["session_id"], stop=stop, **args)
+    return {
+        "__pua__": build_approval_pua(
+            "confirm-reject",
+            "Save passkey to Vault" if item_id else "Register a passkey",
+            "Confirm creating a browser-managed passkey for this site and encrypting it in Vault.",
+            kind="browser_passkey",
+            target=target,
+            suggested_name=name,
+            vault_item_id=item_id,
+        )
+    }, "wait"
+
+
 def submit_input(engine, job_id, request_id, body):
-    if not isinstance(body, dict) or set(body) - {"value"}:
+    if not isinstance(body, dict) or set(body) - {"value", "name"}:
         raise ValueError("Invalid private input form")
     # Read/validate separately: never hold a DB transaction while driving Chrome.
     with engine.db.transaction() as db:
@@ -64,13 +92,24 @@ def submit_input(engine, job_id, request_id, body):
         if (
             job.status != "waiting"
             or not entry
-            or entry.get("name") != "browser_request_input"
+            or entry.get("name")
+            not in ("browser_request_input", "browser_register_passkey")
             or entry.get("_status") != "parked"
             or entry.get("_decision")
         ):
             raise ValueError("Private input request is no longer current")
         payload = entry["_result"]["__pua__"]["payload"]
-        if payload.get("vault_item_id"):
+        registration = entry["name"] == "browser_register_passkey"
+        if registration:
+            if (
+                set(body) != {"name"}
+                or not isinstance(body["name"], str)
+                or not 1 <= len(body["name"].strip()) <= 200
+            ):
+                raise ValueError("Enter a passkey name of 1–200 characters")
+        elif "name" in body:
+            raise ValueError("Invalid private input form")
+        elif payload.get("vault_item_id"):
             if body:
                 raise ValueError(
                     "This request authorizes a Vault item; it takes no value"
@@ -89,6 +128,14 @@ def submit_input(engine, job_id, request_id, body):
 
     def deliver():
         try:
+            if registration:
+                return engine.browsers.passkeys.register(
+                    payload["target"],
+                    body["name"],
+                    job_id + ":" + request_id,
+                    item_id=payload.get("vault_item_id"),
+                    stop=stopped,
+                )
             return engine.browsers.fill(
                 payload["target"],
                 value=body.get("value"),
@@ -99,7 +146,7 @@ def submit_input(engine, job_id, request_id, body):
             )
         except ValueError:
             return {
-                "filled": False,
+                ("saved" if registration else "filled"): False,
                 "error": "Private delivery failed or browser expired. Inspect the page before requesting input again.",
             }
 
@@ -114,7 +161,7 @@ def submit_input(engine, job_id, request_id, body):
         {"request_id": request_id},
         deliver,
     )
-    if "filled" not in outcome:
+    if "filled" not in outcome and "saved" not in outcome:
         # A concurrent delivery may still be in progress, or a prior host died.
         # Do not let a second POST settle the card before the first delivery.
         raise ValueError(

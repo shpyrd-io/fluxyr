@@ -98,11 +98,12 @@ class Driver:
         self.process.stdin.write(json.dumps(message) + "\n")
         self.process.stdin.flush()
 
-    def call(self, op, *, secret=None, stop=lambda: False, **args):
+    def call(self, op, *, secret=None, persist=None, stop=lambda: False, **args):
         with self.lock:
             self.last_used = time.monotonic()
             request_id = uuid.uuid4().hex
             consumed = False
+            persisted = False
             try:
                 self._send({"id": request_id, "op": op, **args})
                 deadline = time.monotonic() + 90
@@ -119,7 +120,20 @@ class Driver:
                         raise BrowserError("Unexpected browser response")
                     if message.get("error"):
                         raise BrowserRejected(message["error"])
-                    if message.get("type") == "secret_request":
+                    if message.get("type") == "passkey_store":
+                        if persist is None or persisted:
+                            raise BrowserError("Unexpected passkey persistence request")
+                        persisted = True
+                        try:
+                            persist(message["credential"])
+                            saved = True
+                        except Exception:  # noqa: BLE001 - private SQL/credential errors must not enter protocol output
+                            # No SQL, credential or CDP details leave this private channel.
+                            saved = False
+                        self._send(
+                            {"type": "secret_value", "id": request_id, "value": saved}
+                        )
+                    elif message.get("type") == "secret_request":
                         if secret is None or consumed:
                             raise BrowserError("Private input is unavailable")
                         consumed = True
@@ -181,6 +195,9 @@ class Browsers:
         self.lock = threading.RLock()
         self.shutdown = threading.Event()
         self.reaper = None
+        from .passkeys import Passkeys
+
+        self.passkeys = Passkeys(self)
 
     def _get(self, session_id, create=True):
         if not self.enabled:
@@ -386,7 +403,7 @@ def install():
     destination = Path(args.directory).resolve()
     source = Path(__file__).with_name("browser_runtime")
     destination.mkdir(parents=True, exist_ok=True)
-    for name in ("driver.mjs", "package.json", "pnpm-lock.yaml"):
+    for name in ("driver.mjs", "passkeys.mjs", "package.json", "pnpm-lock.yaml"):
         if source / name != destination / name:
             shutil.copy2(source / name, destination / name)
     if shutil.which("pnpm"):

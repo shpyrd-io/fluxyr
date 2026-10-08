@@ -484,7 +484,7 @@ class Engine:
                             else decision.get("result"),
                             continuation=continuation_for(entry),
                         )
-                    elif entry["name"] in ("manage_vault_credential", "browser_request_input"):
+                    elif entry["name"] in ("manage_vault_credential", "browser_request_input", "browser_register_passkey"):
                         # Validated server-side by the private Vault form endpoint.
                         result = {**decision["result"], "status": "completed"}
                         mode = "continue"

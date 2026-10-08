@@ -183,7 +183,7 @@ function HumanQuestion({
 }
 
 export function HumanRequest(props: Parameters<typeof HumanQuestion>[0]) {
-  return props.pending.name === "browser_request_input" ? (
+  return ["browser_request_input", "browser_register_passkey"].includes(props.pending.name) ? (
     <BrowserPrivateInput {...props} />
   ) : props.pending.name === "manage_vault_credential" ? (
     <VaultRequest {...props} />

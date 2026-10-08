@@ -1,4 +1,4 @@
-# Headless browser, private input and OTP
+# Headless browser, private input, OTP and passkeys
 
 Fluxyr can run a local headless Chrome through **public-browser 3.0.0**. Browser
 tools are optional. The normal Python package does not start Chrome or require
@@ -16,6 +16,8 @@ python -m fluxyr.browser install
 The installer uses pnpm with the bundled lockfile when available, otherwise npm
 with the pinned public-browser version. It does not install Chrome. For a custom
 Chromium executable, set `CHROME_PATH`.
+Run the installer again after upgrading Fluxyr to update the private controller
+alongside the Python package. Rebuild the optional Docker image for deployments.
 
 Enable the feature in your application environment and restart Fluxyr:
 
@@ -126,6 +128,53 @@ restart preserves the conversation and request metadata, but cannot restore a
 live element or temporary value. An expired delivery resumes with a safe failure
 so the agent can inspect the page and request fresh input. Uncertain effects are
 not replayed automatically.
+
+## Passkeys registered inside Fluxyr
+
+Passkeys can be created directly by Chrome's virtual WebAuthn authenticator and
+stored encrypted as browser-managed Vault items. No private key needs to be pasted
+into a form, imported from another password manager or passed through model context.
+
+1. Sign in to the account in Fluxyr's browser using its normal supported login flow.
+2. Navigate to the site's account/security settings and locate its final Add passkey button.
+3. Call `browser_register_passkey(origin="https://portal.example.com", selector="#add-passkey", suggested_name="Example — Alice — Production")`.
+4. Confirm the destination and Vault name in the embedded card. Only then does
+   Fluxyr activate the authenticator and click the registration button.
+5. Inspect the site's result to confirm registration. `saved=true` means the key
+   was encrypted in Vault; the website can still reject its registration response.
+
+On later executions, navigate to the login screen and call
+`browser_use_passkey(origin="https://portal.example.com", vault_item_id="...", selector="#passkey-login")`.
+The authenticator is restored for that one operation, then removed. Login cookies
+are still temporary, but the passkey survives browser closure and server restart.
+Signature counters are reserved in Vault before assertions, avoiding reuse after
+an interrupted operation. Inspect the resulting page: a signed assertion alone
+does not confirm the site's login succeeded.
+
+The exact origin is bound to the saved credential. Registration requests expire
+after ten minutes or browser restart and bind the exact button/document/tab.
+The key is handled only by Chrome, the local controller and encrypted Vault storage;
+tool results contain metadata and outcome only. Vault permits renaming/deletion,
+not viewing or manually replacing the key. Deleting it locally does not revoke
+the registration on the website.
+
+If persistence fails after creation, `saved=false, recoverable=true` means the
+controller temporarily retains the credential. Keep that browser open and call
+`browser_register_passkey(origin="...", vault_item_id="...")` without a button
+to confirm retrying the save without creating another credential. If the process
+dies before storage, the key cannot be recovered; inspect/revoke that incomplete
+registration on the site before enrolling again. A pending Vault item is not usable
+for login.
+
+This is a software authenticator intended for trusted automation, not hardware
+attestation or biometric verification. Services requiring approved hardware or a
+specific authenticator may reject it. This version handles explicit WebAuthn
+buttons and resident credentials; it does not import existing phone/security-key
+passkeys or emulate native platform account-selection dialogs.
+
+The approval API reports `kind=browser_passkey`. POST `{"name":"Example account"}`
+to its `submission_url` to confirm, or reject through `decision_url`. The same
+approval-key protection applies as for private browser input.
 
 ## Boundaries and resources
 

@@ -27,6 +27,7 @@ TYPES = (
     "certificate_pem",
     "certificate_pfx",
     "totp",
+    "passkey",
 )
 
 
@@ -69,6 +70,7 @@ class Vault:
                     "name": v.name,
                     "type": v.type,
                     "created_at": v.created_at,
+                    **({"passkey_config": {k: self.decrypt(v.content).get(k) for k in ("origin", "state")}} if v.type == "passkey" else {}),
                     **(
                         {
                             "oauth_config": self.oauth_configuration(v, s),
@@ -126,6 +128,11 @@ class Vault:
                 "executed": False,
             }
         try:
+            if metadata["type"] == "passkey":
+                with self.db.transaction() as db:
+                    item = db.get(VaultItem, metadata["id"])
+                    ready = bool(self.decrypt(item.content).get("credential"))
+                return {"ready": ready, "vault_item_id": metadata["id"], "type": "passkey", "note": "Use browser_use_passkey; private key export is unavailable."}
             self.resolve(name)
         except Exception as exc:  # noqa: BLE001 - private diagnostics must not expose raw HTTP errors
             return {
@@ -168,6 +175,8 @@ class Vault:
         return values
 
     def validate(self, name, kind, content):
+        if kind == "passkey":
+            raise ValueError("Passkeys are managed by the browser enrollment flow")
         if (
             kind not in TYPES
             or not isinstance(name, str)
@@ -232,6 +241,8 @@ class Vault:
             return self._put(session, name, kind, content)
 
     def _put(self, session, name, kind, content, *, create_only=False):
+        if kind == "passkey":
+            raise ValueError("Register passkeys through browser_register_passkey, not a manual Vault form")
         self.validate(name, kind, content)
         if kind == "oauth2":
             content = self._oauth_content(session, content)
@@ -242,6 +253,8 @@ class Vault:
         item = session.scalar(
             select(VaultItem).where(VaultItem.name == name).with_for_update()
         )
+        if item and item.type == "passkey":
+            raise ValueError("A saved passkey cannot be overwritten with another credential")
         if item and create_only:
             raise ValueError(
                 "A Vault item with this name already exists; choose another name or edit it"
@@ -261,6 +274,12 @@ class Vault:
         item = session.get(VaultItem, item_id, with_for_update=True)
         if not item:
             raise ValueError("Vault item not found")
+        if item.type == "passkey":
+            if content or not isinstance(name, str) or not 1 <= len(name.strip()) <= 200:
+                raise ValueError("Passkeys allow renaming only; enroll a new credential in the browser to replace one")
+            item.name = name.strip()
+            session.flush()
+            return {"id": item.id, "name": item.name, "type": item.type}
         if content is not None and not isinstance(content, dict):
             raise ValueError("Content must be an object")
         old = self.decrypt(item.content)
@@ -292,6 +311,8 @@ class Vault:
     def get_optional(self, name):
         with self.db.transaction() as s:
             item = s.scalar(select(VaultItem).where(VaultItem.name == name))
+            if item and item.type == "passkey":
+                raise ValueError("Passkey private keys are available only to the browser authenticator")
             return self.decrypt(item.content) if item else None
 
     def resolve(self, name):
@@ -303,6 +324,8 @@ class Vault:
             )
             if not item:
                 raise ValueError(f"Vault item not found: {name}")
+            if item.type == "passkey":
+                raise ValueError("Use browser_use_passkey for this credential")
             content = self.decrypt(item.content)
             if item.type == "oauth2" and (
                 not content.get("access_token")
@@ -332,6 +355,8 @@ class Vault:
                 item = s.scalar(select(VaultItem).where(VaultItem.name == name))
                 if not item:
                     raise ValueError(f"Vault item not found: {name}")
+                if item.type == "passkey":
+                    raise ValueError("Use browser_use_passkey for this credential")
                 original = item.content
                 item_id = item.id
                 content = self.decrypt(original)

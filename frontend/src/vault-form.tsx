@@ -7,6 +7,7 @@ import { SelectField, SelectOption } from "./form-select";
 import { oauthPrefill } from "./vault-prefill";
 
 export const vaultKinds: Record<string, string> = {
+  passkey: "Passkey (browser-managed)",
   totp: "Authenticator (TOTP)",
   text: "Secret text",
   key_password: "Key and password",
@@ -215,7 +216,7 @@ export function VaultForm({
       className="resource-form vault-form"
       autoComplete="off"
     >
-      {editing && (
+      {editing && values.kind !== "passkey" && (
         <p className="muted">
           Leave fields blank to keep saved values. Upload a file to replace a
           certificate.
@@ -255,13 +256,20 @@ export function VaultForm({
               setFileNames({});
             }}
           >
-            {Object.entries(vaultKinds).map(([k, v]) => (
+            {Object.entries(vaultKinds).filter(([k]) => k !== "passkey" || editing).map(([k, v]) => (
               <SelectOption key={k} value={k}>
                 {v}
               </SelectOption>
             ))}
           </SelectField>
         </Label>
+        {values.kind === "passkey" && (
+          <p className="muted">
+            This passkey was enrolled through the browser. You can rename it here;
+            the private key cannot be viewed or replaced. Deleting the Vault item
+            does not revoke the credential on the website.
+          </p>
+        )}
         {values.kind === "oauth2" && (
           <Label className="vault-wide">
             OAuth flow

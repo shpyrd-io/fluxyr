@@ -18,6 +18,7 @@ test("workbench shows its Vault cards and descendant builder cards without unrel
       pending: [
         pending("manage_vault_credential", "c"),
         pending("browser_request_input", "private"),
+        pending("browser_register_passkey", "passkey"),
         pending("ask_human", "h"),
       ],
     },
@@ -39,13 +40,13 @@ test("workbench shows its Vault cards and descendant builder cards without unrel
     pendingInteractions("workbench", jobs).flatMap((g) =>
       g.pending.map((p) => p.call_id),
     ),
-    ["c", "private", "gc"],
+    ["c", "private", "passkey", "gc"],
   );
   assert.deepEqual(
     pendingInteractions("builder", jobs).flatMap((g) =>
       g.pending.map((p) => p.call_id),
     ),
-    ["c", "private", "h", "gc"],
+    ["c", "private", "passkey", "h", "gc"],
   );
 });
 test("resolved cards disappear while undecided siblings remain", () => {

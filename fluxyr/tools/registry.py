@@ -479,7 +479,7 @@ class Registry:
         from ..vault import TYPES
 
         if e.browsers.enabled:
-            from ..interactions.browser import request_input
+            from ..interactions.browser import request_input, request_registration
 
             target_fields = {
                 "origin": {
@@ -553,13 +553,29 @@ class Registry:
                 ["origin"],
                 lambda a, *_: request_input(e, self.job, a, self.stop),
             )
+            passkey_fields = {k: target_fields[k] for k in ("origin", "ref", "selector", "vault_item_id")}
+            for key in ("ref", "selector"):
+                passkey_fields[key] = {"type": "string", "description": "Exact button that triggers WebAuthn, from view_page. Supply ref OR selector."}
+            add(
+                "browser_register_passkey",
+                "Pause for human confirmation to create a passkey inside this browser and encrypt it directly in Vault. First sign in and navigate to the site's Add passkey screen. Supply the final registration button ref OR selector and exact HTTPS origin. The human names and confirms the passkey before any credential is created. No key export/import or values in context. If a save failed with recoverable=true, pass its vault_item_id and origin (no button) to request saving the existing key without registering again. Inspect the site afterwards: saving in Vault alone does not confirm server acceptance.",
+                {**passkey_fields, "suggested_name": {"type": "string", "maxLength": 200}},
+                ["origin"], lambda a, *_: request_registration(e, self.job, a, self.stop),
+            )
+            add(
+                "browser_use_passkey",
+                "Authenticate using a saved Vault passkey, restored privately into a one-shot WebAuthn authenticator. Supply exact saved origin and the button that starts passkey login (ref OR selector). No credential values enter context. Works after browser restart; verify the resulting page to confirm login. Some sites require hardware-backed authenticators and are unsupported.",
+                passkey_fields, ["origin", "vault_item_id"],
+                lambda a, *_: e.browsers.passkeys.authenticate(self.job["session_id"], a["vault_item_id"], a["origin"], a.get("ref"), a.get("selector"), self.stop),
+                effect=True,
+            )
 
         add(
             "manage_vault_credential",
             "Open an embedded private Vault form and wait for the user to save or cancel. Use create when a required credential is missing, edit for an existing ID from vault_list. Prefill public OAuth settings (token_url, authorization_url, scope, token_auth_method) in oauth_config from the provider documentation. Never pass credential values in chat or ask_human. Returns only the saved Vault ID/name. Declare that name in action secrets and use secret(name) at runtime.",
             {
                 "action": {"type": "string", "enum": ["create", "edit"]},
-                "vault_item_type": {"type": "string", "enum": list(TYPES)},
+                "vault_item_type": {"type": "string", "enum": [t for t in TYPES if t != "passkey"]},
                 "suggested_name": {"type": "string", "maxLength": 200},
                 "vault_item_id": S,
                 "oauth_config": OAUTH_PREFILL_SCHEMA,
@@ -845,6 +861,8 @@ class Registry:
                 "browser",
                 "browser_fill_private",
                 "browser_request_input",
+                "browser_register_passkey",
+                "browser_use_passkey",
                 "get_current_datetime",
                 "submit_plan",
                 "create_action",

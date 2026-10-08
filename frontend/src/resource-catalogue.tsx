@@ -438,6 +438,12 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                         Values are encrypted and are not returned to the
                         browser.
                       </p>
+                      {item.type === "passkey" && (
+                        <p>
+                          {item.passkey_config?.origin} · {item.passkey_config?.state === "saved" ? "Saved in Vault" : "Enrollment incomplete"}.
+                          {" "}Used directly by the browser authenticator. Removing it here does not revoke it on the website.
+                        </p>
+                      )}
                       {item.type === "oauth2" &&
                         item.oauth_config?.grant_type ===
                           "client_credentials" && (
@@ -506,7 +512,7 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
             </DialogTitle>
             <DialogDescription>
               {page === "Vault" && selected
-                ? "Leave fields blank to keep saved values. Upload a file to replace a certificate."
+                ? selected.type === "passkey" ? "Rename this browser-managed passkey. Its private key cannot be viewed or replaced." : "Leave fields blank to keep saved values. Upload a file to replace a certificate."
                 : page === "Skills"
                   ? "Define what the skill does. Build its Python actions after saving."
                   : page === "Routines"

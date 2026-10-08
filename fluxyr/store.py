@@ -376,7 +376,7 @@ class Store:
                 raise ValueError(
                     "Human request is no longer current; reload the execution"
                 )
-            if entry.get("name") in ("manage_vault_credential", "browser_request_input"):
+            if entry.get("name") in ("manage_vault_credential", "browser_request_input", "browser_register_passkey"):
                 if value.get("decision") != "reject":
                     raise ValueError(
                         "Use the embedded private form to complete this request"
