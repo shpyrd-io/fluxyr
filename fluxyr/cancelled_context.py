@@ -1,4 +1,4 @@
-"""Keep acquired conversation context without resuming cancelled work."""
+"""Keep acquired conversation context without resuming stopped work."""
 
 import copy
 
@@ -7,6 +7,12 @@ from .interactions.tool_outputs import build_tool_outputs
 
 
 def cancelled_context(state):
+    return stopped_context(state, "cancelled")
+
+
+def stopped_context(state, status):
+    if status not in {"cancelled", "failed", "interrupted"}:
+        raise ValueError("Context recovery requires a terminal stop status")
     if not state or state.get("provider") in (None, "local"):
         return None
     if not state.get("short_term", {}).get("items"):
@@ -16,6 +22,7 @@ def cancelled_context(state):
     messages = saved["short_term"]["items"]
     history = []
     unanswered = {}
+    reason = "cancelled by the user" if status == "cancelled" else status
 
     def close_calls():
         for call_id, name in unanswered.items():
@@ -31,8 +38,8 @@ def cancelled_context(state):
                     name,
                     call_id,
                     {
-                        "status": "cancelled",
-                        "error": "Execution cancelled by the user before a final result was recorded. Do not retry automatically; external effects may already have occurred.",
+                        "status": status,
+                        "error": f"Execution {reason} before a final result was recorded. Do not retry automatically; external effects may already have occurred.",
                     },
                 ).to_message()
             history.append(result)
@@ -56,7 +63,7 @@ def cancelled_context(state):
     history.append(
         {
             "role": "assistant",
-            "content": "[Execution cancelled by the user. Previous conversation and completed tool results are retained for reference. Pending work is stopped; follow the next user request.]",
+            "content": f"[Execution {reason}. Previous conversation and completed tool results are retained for reference. Pending work is stopped; follow the next user request.]",
         }
     )
     saved["short_term"]["items"] = history

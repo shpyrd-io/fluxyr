@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.9.1 — 2026-10-07
+
+- Preserve conversation context after worker interruption or execution exceptions while closing unresolved calls without retrying them.
+- Include persisted tool failures and execution phases in diagnostics even when no script logs exist, and stop showing interrupted tool calls as running.
+
 ## 0.9.0 — 2026-10-07
 
 - Add reactive routines with durable webhook collection, versioned Python normalizers, sample testing, session routing, deduplication and explicit replay.

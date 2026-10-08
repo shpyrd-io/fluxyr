@@ -538,6 +538,10 @@ class Engine:
             self.store.sync_session(s, session)
             if status == "cancelled":
                 self.store.retain_cancelled_context(session, row)
+            elif status == "failed" and error:
+                # Keep acquired history while closing unresolved tool calls and
+                # clearing ERROR/pending state before the next user message.
+                self.store.retain_stopped_context(session, row)
             if (
                 status in ("succeeded", "failed")
                 and state
@@ -551,7 +555,8 @@ class Engine:
                 # JSON columns need fresh assignments after changing nested state.
                 row.brain = copy.deepcopy(state)
                 session.brain = copy.deepcopy(state)
-            # Failed conversations are retained on the job for inspection; never poison the next turn.
+            # The original failed state stays on the job for inspection; only
+            # the session copy is sanitized for a fresh turn.
             if status not in ("waiting", "paused", "building"):
                 row.finished_at = time.time()
             if text:

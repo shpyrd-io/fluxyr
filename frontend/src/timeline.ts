@@ -160,6 +160,17 @@ export function buildTimeline(
           });
       }
       legacy.delete(e.job_id);
+      if (["failed", "cancelled", "interrupted"].includes(e.type)) {
+        for (const item of tools.values()) {
+          if (item.jobId !== e.job_id || item.event?.type !== "tool_begin") continue;
+          // A killed worker cannot emit tool_end. Keep the original event/args
+          // but project the job's terminal state instead of a permanent spinner.
+          item.event = {
+            ...item.event,
+            payload: { ...item.event.payload, interrupted_status: e.type },
+          };
+        }
+      }
       for (const block of blocks.values())
         if (block.jobId === e.job_id) block.live = false;
     }

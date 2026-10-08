@@ -5,10 +5,10 @@ import time
 
 from sqlalchemy import exists, func, or_, select, update
 
-from .cancelled_context import cancelled_context
+from .cancelled_context import stopped_context
 from .database import MAIN_SESSION, row_dict
 from .models import Decision, Event, Job, Message, Session, Skill, Tool, ToolVersion
-from .persistence import bounded, event_payload, restore_tool_identity
+from .persistence import event_payload, restore_tool_identity
 
 TERMINAL = {"succeeded", "failed", "cancelled", "interrupted"}
 
@@ -241,7 +241,9 @@ class Store:
                 j.error = "Worker stopped. Review recorded effects before retrying."
                 j.finished_at = time.time()
                 j.owner = None
-                s.get(Session, j.session_id).status = "idle"
+                session = s.get(Session, j.session_id, with_for_update=True)
+                session.status = "idle"
+                self.retain_stopped_context(session, j)
                 s.add(
                     Event(
                         session_id=j.session_id,
@@ -318,9 +320,12 @@ class Store:
             return row_dict(job)
 
     def retain_cancelled_context(self, session, job):
+        self.retain_stopped_context(session, job)
+
+    def retain_stopped_context(self, session, job):
         # An unstarted queued job only has inherited context, never new history.
         if job.input.get("started"):
-            state = cancelled_context(job.brain)
+            state = stopped_context(job.brain, job.status)
             if state:
                 session.brain = state
 

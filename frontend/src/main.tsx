@@ -29,6 +29,7 @@ import { ActivityFeed } from "./live-activity-data";
 import { UsageProvider, UsageBadge } from "./usage";
 import { ExecutionFlowPanel } from "./execution-flow-panel";
 import { buildTimeline } from "./timeline";
+import { executionDiagnostics } from "./execution-diagnostics";
 import { pendingInteractions } from "./pending-interactions";
 import { HumanRequest } from "./human-request";
 import { BuildProgress } from "./build-progress";
@@ -366,6 +367,10 @@ function Chat({
   const [controlBusy, setControlBusy] = useState(false);
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const diagnosticText = useMemo(
+    () => diagnosticsOpen ? executionDiagnostics(events) : "",
+    [diagnosticsOpen, events],
+  );
   const diagnosticsTrigger = useRef<HTMLButtonElement>(null);
   const [memory, setMemory] = useState<RecordData | null>(null);
   const streamRef = useRef<HTMLDivElement>(null),
@@ -596,24 +601,18 @@ function Chat({
             <DialogHeader>
               <DialogTitle>Execution diagnostics</DialogTitle>
               <DialogDescription>
-                Runner output and dependency installation logs. These do not
-                interrupt the conversation.
+                Recent tool failures, execution phases and runtime output.
+                Failures before Python starts may have no script logs.
               </DialogDescription>
             </DialogHeader>
             <DialogBody>
-              {events.some((e) => e.type === "progress") ? (
+              {diagnosticText ? (
                 <pre className="execution-log-output">
-                  {events
-                    .filter((e) => e.type === "progress")
-                    .map(
-                      (e) =>
-                        `[${e.job_id.slice(0, 8)}${e.payload.call_id ? " / " + e.payload.call_id : ""}] ${e.payload.text}`,
-                    )
-                    .join("\n")}
+                  {diagnosticText}
                 </pre>
               ) : (
                 <Typography variant="MUTED">
-                  No runtime logs recorded for this session.
+                  No tool failures or runtime logs recorded for this session.
                 </Typography>
               )}
             </DialogBody>
@@ -1015,7 +1014,7 @@ function EventCard({
           <Status
             status={
               e.type === "tool_begin"
-                ? "running"
+                ? e.payload.interrupted_status || "running"
                 : e.payload.result?.error || e.payload.result?.success === false
                   ? "failed"
                   : e.payload.mode === "wait"
@@ -1036,6 +1035,12 @@ function EventCard({
           Event: <code>{e.id}</code>
         </span>
       </div>
+      {e.payload.interrupted_status && (
+        <p className="error">
+          Execution {e.payload.interrupted_status} before this tool recorded a final
+          result. Review execution diagnostics before retrying; effects may have occurred.
+        </p>
+      )}
       {e.type === "tool_end" &&
       ["read", "write", "edit", "bash"].includes(e.payload.tool_name) &&
       typeof e.payload.result?.content === "string" ? (

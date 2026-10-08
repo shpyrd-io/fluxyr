@@ -9,10 +9,6 @@ Use semantic versions: patch for fixes, minor for features, major for breaking
 changes after 1.0. During 0.x, document breaking changes in each minor release.
 Never replace an already published version; issue a new version for changes.
 
-The next planned release is **0.9.0**, with tag `v0.9.0`. Push the release commit
-and wait for GitHub CI to pass before creating/pushing that tag. This is a release
-target, not a statement that 0.9.0 has already been published.
-
 ## Publish
 
 1. Update `fluxyr/_version.py` and `CHANGELOG.md` in a reviewed commit on `main`,
@@ -22,8 +18,8 @@ target, not a statement that 0.9.0 has already been published.
 3. Tag that commit and push the tag:
 
    ```sh
-   git tag -a v0.9.0 -m 'Fluxyr 0.9.0'
-   git push origin v0.9.0
+   git tag -a v0.9.1 -m 'Fluxyr 0.9.1'
+   git push origin v0.9.1
    ```
 
 The Release workflow checks the tag/version and main ancestry, runs CI plus the full PostgreSQL/Linux integration suite,
@@ -32,7 +28,7 @@ Consumers of the wheel do not need Node. Installing from a Git checkout requires
 building the UI first; use the released wheel for a minimal consumer application.
 
 For a failed publication, retry the workflow run. To dispatch against an existing
-tag, use `gh workflow run release.yml --ref v0.9.0 -f tag=v0.9.0`.
+tag, use `gh workflow run release.yml --ref v0.9.1 -f tag=v0.9.1`.
 Manual dispatch must use the tag as its ref so tests and artifacts match the tag.
 
 ## One-time PyPI setup

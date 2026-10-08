@@ -10,6 +10,19 @@ const event = (id: number, type: string, payload: Record<string, unknown>) => ({
   created_at: id,
 });
 
+test("worker interruption stops a tool card without inventing a tool result", () => {
+  const timeline = buildTimeline([], [
+    event(1, "tool_begin", { tool_name: "test_action", tool_call_id: "call", args: { version_id: "candidate" } }),
+    event(2, "interrupted", { error: "Worker stopped" }),
+  ]);
+  const card = timeline.find((item) => item.id === "job:tool:call")!.event!;
+  assert.equal(card.id, 1);
+  assert.equal(card.type, "tool_begin");
+  assert.equal(card.payload.interrupted_status, "interrupted");
+  assert.equal(card.payload.args.version_id, "candidate");
+  assert.equal(card.payload.result, undefined);
+});
+
 test("runner diagnostics do not interrupt the conversation or split a tool card", () => {
   const events = [
     event(1, "tool_begin", { tool_call_id: "call", tool_name: "test_action" }),
