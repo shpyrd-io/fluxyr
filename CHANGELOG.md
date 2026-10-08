@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.3 — 2026-10-08
 
 - Add encrypted TOTP Vault items, private browser field filling and session-routed human input without putting values in model tool arguments or results.
 - Add an optional public-browser 3.0 headless Chrome controller using local pipes, explicit page captures, bounded session lifetimes and an optional Docker browser target.

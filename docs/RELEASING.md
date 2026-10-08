@@ -18,8 +18,8 @@ Never replace an already published version; issue a new version for changes.
 3. Tag that commit and push the tag:
 
    ```sh
-   git tag -a v0.9.2 -m 'Fluxyr 0.9.2'
-   git push origin v0.9.2
+   git tag -a v0.9.3 -m 'Fluxyr 0.9.3'
+   git push origin v0.9.3
    ```
 
 The Release workflow checks the tag/version and main ancestry, runs CI plus the full PostgreSQL/Linux integration suite,
@@ -30,7 +30,7 @@ wheel do not need Node unless enabling the optional browser. Installing from a G
 building the UI first; use the released wheel for a minimal consumer application.
 
 For a failed publication, retry the workflow run. To dispatch against an existing
-tag, use `gh workflow run release.yml --ref v0.9.2 -f tag=v0.9.2`.
+tag, use `gh workflow run release.yml --ref v0.9.3 -f tag=v0.9.3`.
 Manual dispatch must use the tag as its ref so tests and artifacts match the tag.
 
 ## One-time PyPI setup
@@ -57,13 +57,13 @@ at first publication. Check the PyPI job before announcing index availability.
 Once published to PyPI:
 
 ```text
-fluxyr==0.1.0
+fluxyr==0.9.3
 ```
 
 A GitHub release wheel also works without PyPI:
 
 ```text
-fluxyr @ https://github.com/shpyrd-io/fluxyr/releases/download/v0.1.0/fluxyr-0.1.0-py3-none-any.whl
+fluxyr @ https://github.com/shpyrd-io/fluxyr/releases/download/v0.9.3/fluxyr-0.9.3-py3-none-any.whl
 ```
 
 Both forms install the bundled UI and dependencies. Pin versions for deployments.
