@@ -1,11 +1,90 @@
 """Provider-reported usage, persisted once per request; no price estimates."""
 
 import math
+import threading
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from .models import Event, Job
+
+
+class UsageReports:
+    """Reuse totals until usage changes; send only changed call/tool counters."""
+
+    def __init__(self, db):
+        self.db = db
+        self.lock = threading.Lock()
+        self.key = None
+        self.report = None
+        self.parents = {}
+
+    def get(self, *, after=None, session_id=None):
+        with self.lock:
+            with self.db.transaction() as s:
+                key = tuple(
+                    s.execute(
+                        select(func.max(Event.id), func.count(Event.id)).where(
+                            Event.type == "usage"
+                        )
+                    ).one()
+                )
+            if key != self.key or self.report is None:
+                self.parents = {}
+                self.report = usage_report(self.db, parents_out=self.parents)
+                self.key = key
+            cursor = key[0] or 0
+            if after is not None and after == cursor:
+                return {"cursor": cursor, "unchanged": True}
+            if after is None and session_id is None:
+                return {**self.report, "cursor": cursor}
+            reset = after is None or after > cursor
+            with self.db.transaction() as s:
+                changed = list(
+                    s.execute(
+                        select(Event.id, Event.job_id, Event.session_id, Event.payload)
+                        .where(
+                            Event.type == "usage", Event.id > (0 if reset else after)
+                        )
+                        .order_by(Event.id)
+                        .limit(201)
+                    )
+                )
+            more = len(changed) > 200
+            changed = changed[:200]
+            if more:
+                cursor = changed[-1].id
+            visible = [
+                row for row in changed if not session_id or row.session_id == session_id
+            ]
+            calls = {row.payload.get("model_call_id") or str(row.id) for row in visible}
+            jobs = set()
+            for row in changed:
+                jid, visited = row.job_id, set()
+                while jid and jid not in visited:
+                    visited.add(jid)
+                    jobs.add(jid)
+                    jid = self.parents.get(jid)
+            tools = {}
+            for row in visible:
+                tool = row.payload.get("tool_call_id")
+                available = self.report["by_tool"].get(row.job_id, {})
+                if tool and tool in available:
+                    tools.setdefault(row.job_id, {})[tool] = available[tool]
+                elif row.payload.get("source") == "techdoc":
+                    tools[row.job_id] = available  # legacy attribution
+            return {
+                "cursor": cursor,
+                "has_more": more,
+                "reset": reset,
+                "total": self.report["total"],
+                "since": self.report["since"],
+                "by_job": {k: v for k, v in self.report["by_job"].items() if k in jobs},
+                "by_call": {
+                    k: v for k, v in self.report["by_call"].items() if k in calls
+                },
+                "by_tool": tools,
+            }
 
 
 def bind_usage(adapter, emit, context=None):
@@ -40,7 +119,7 @@ def bind_usage(adapter, emit, context=None):
     return adapter
 
 
-def usage_report(db):
+def usage_report(db, *, parents_out=None):
     with db.transaction() as s:
         # Older TechDoc requests recorded their scope but not the owning tool call.
         # Recover only unambiguous associations; never assign a shared parent cost.
@@ -87,6 +166,9 @@ def usage_report(db):
                 ).execution_options(yield_per=256)
             )
         }
+
+        if parents_out is not None:
+            parents_out.update(parents)
 
         def empty():
             return {

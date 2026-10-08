@@ -5,7 +5,22 @@ import {
 } from "./approval-auth";
 
 export type RecordData = Record<string, any>;
-export async function api(
+const pendingReads = new Map<string, Promise<any>>();
+export function api(
+  path: string,
+  method = "GET",
+  data?: unknown,
+): Promise<any> {
+  if (method !== "GET") return request(path, method, data);
+  const pending = pendingReads.get(path);
+  if (pending) return pending;
+  const read = request(path, method, data).finally(() =>
+    pendingReads.delete(path),
+  );
+  pendingReads.set(path, read);
+  return read;
+}
+async function request(
   path: string,
   method = "GET",
   data?: unknown,

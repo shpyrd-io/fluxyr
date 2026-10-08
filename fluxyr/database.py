@@ -8,7 +8,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from .models import Base, Session, Version
+from .models import Base, Event, Session, Version
 
 MAIN_SESSION = "00000000-0000-0000-0000-000000000001"
 
@@ -23,6 +23,8 @@ class Database:
         self._transaction_lock = threading.RLock()
         self._local = threading.local()
         options = {"pool_pre_ping": True}
+        if not self.sqlite:
+            options["connect_args"] = {"connect_timeout": 5}
         if self.sqlite:
             options["connect_args"] = {"check_same_thread": False, "timeout": 30}
             if url.database in (None, "", ":memory:"):
@@ -69,6 +71,9 @@ class Database:
             if conn.dialect.name == "postgresql":
                 conn.execute(text("SELECT pg_advisory_xact_lock(70423901)"))
             Base.metadata.create_all(conn)
+            # create_all does not add indexes to existing tables.
+            for index in Event.__table__.indexes:
+                index.create(conn, checkfirst=True)
             version = conn.scalar(select(Version.id))
             if version not in (None, 1, 2, 3, 4, 5):
                 raise RuntimeError("Unsupported database schema version")

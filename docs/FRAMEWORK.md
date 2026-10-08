@@ -253,3 +253,35 @@ require separate schemas/databases and runtime roots.
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for the fast SQLite suite and complete
 PostgreSQL/Linux integration suite. Releases check both databases, supported
 Python versions and an installed wheel outside the source checkout.
+
+### Worker recovery and health probes
+
+A monitor independent of the dispatch thread supervises the embedded worker.
+After failure it stops dispatch and waits for the previous generation's jobs,
+Python subprocess owners, reactive processor, memory worker and detached model
+requests to finish. Only then does it reacquire the database/file fence and start
+a generation with a new ownership token. Recovery never automatically replays
+interrupted actions: external effects may already have occurred.
+
+Recovery attempts use delays of 1, 5 and 15 seconds. A completed fenced heartbeat
+and dispatch cycle resets the failure count; creating a thread does not. Three
+unsuccessful recovery generations mark the process unhealthy. If old work cannot
+drain within thirty seconds, the monitor also marks it unhealthy rather than
+starting an overlapping worker. Applications with native tools should make long
+operations interruptible where possible.
+
+A database connection outage leaves the HTTP interface available while reconnecting.
+Failed reconnections wait thirty seconds and do not consume the worker-defect
+retry budget. Restarting containers cannot repair an unavailable database.
+
+- `GET /api/health/live`: HTTP 200 while recovery remains viable; HTTP 503 after
+  recovery exhaustion or unsafe/stuck drainage. Use this for **liveness**.
+- `GET /api/health/ready`: HTTP 200 only when the worker is running; HTTP 503 while
+  stopped, starting, recovering or failed. Use this for **readiness** when the
+  deployment should route traffic only to a functioning agent.
+- `GET /api/health`: compatibility endpoint with version and session metadata,
+  `worker`, `worker_state`, `recovery_failures` and `live`. Its HTTP status follows
+  liveness; `status` is `degraded` when the worker is unavailable.
+
+The deployment must configure its probes to use these endpoints; installing the
+package does not change Kubernetes or hosting-provider probe configuration.

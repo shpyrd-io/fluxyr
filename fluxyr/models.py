@@ -8,6 +8,7 @@ from sqlalchemy import (
     Boolean,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -74,6 +75,10 @@ class Job(Base):
 
 class Event(Base):
     __tablename__ = "events"
+    __table_args__ = (
+        Index("ix_events_type_id", "type", "id"),
+        Index("ix_events_session_id_id", "session_id", "id"),
+    )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id"), index=True)
     job_id: Mapped[str | None] = mapped_column(String(36), index=True)

@@ -17,6 +17,7 @@ class Store:
     def __init__(self, db):
         self.db = db
         self.file_skills = []
+        self.on_control = lambda: None
 
     def emit(self, session_id, job_id, kind, payload):
         with self.db.transaction() as s:
@@ -218,21 +219,20 @@ class Store:
 
     def heartbeat(self, owner):
         with self.db.transaction() as s:
-            for j in s.scalars(
-                select(Job).where(
-                    Job.owner == owner, Job.status.in_(["running", "paused"])
-                )
-            ):
-                j.lease_until = time.time() + self.db.settings.lease_seconds
+            s.execute(
+                update(Job)
+                .where(Job.owner == owner, Job.status.in_(["running", "paused"]))
+                .values(lease_until=time.time() + self.db.settings.lease_seconds)
+            )
 
-    def recover(self):
+    def recover(self, *, owner=None):
         with self.db.transaction() as s:
             jobs = s.scalars(
                 select(Job)
                 .where(
                     Job.status.in_(["running", "paused"]),
                     Job.owner.is_not(None),
-                    Job.lease_until < time.time(),
+                    (Job.owner == owner) if owner else (Job.lease_until < time.time()),
                 )
                 .with_for_update(skip_locked=True)
             )
@@ -317,7 +317,10 @@ class Store:
                         self.sync_session(s, child_session)
             s.flush()
             self.sync_session(s, session)
-            return row_dict(job)
+            result = row_dict(job)
+        # Invalidate only after commit, outside the SQLite transaction lock.
+        self.on_control()
+        return result
 
     def retain_cancelled_context(self, session, job):
         self.retain_stopped_context(session, job)

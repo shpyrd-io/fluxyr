@@ -6,24 +6,62 @@ import {
   type ReactNode,
 } from "react";
 import { api, type RecordData } from "./api";
+import { createPoller } from "./polling";
 const UsageContext = createContext<RecordData>({});
-export function UsageProvider({ children }: { children: ReactNode }) {
+export function UsageProvider({
+  children,
+  session,
+}: {
+  children: ReactNode;
+  session: string;
+}) {
   const [usage, setUsage] = useState<RecordData>({});
   useEffect(() => {
     let disposed = false;
-    const refresh = () =>
-      api("/usage")
-        .then((v) => {
-          if (!disposed) setUsage(v);
-        })
-        .catch(() => {});
-    refresh();
-    const timer = setInterval(refresh, 4000);
+    let cursor: number | undefined;
+    setUsage({});
+    const poller = createPoller(async () => {
+      try {
+        const v = await api(
+          `/usage?session_id=${encodeURIComponent(session)}${cursor === undefined ? "" : `&after=${cursor}`}`,
+        );
+        if (disposed) return;
+        cursor = v.cursor;
+        if (!v.unchanged)
+          setUsage((old) => ({
+            ...v,
+            by_job: { ...(v.reset ? {} : old.by_job), ...v.by_job },
+            by_call: { ...(v.reset ? {} : old.by_call), ...v.by_call },
+            by_tool: Object.fromEntries(
+              [
+                ...new Set([
+                  ...Object.keys(v.reset ? {} : old.by_tool || {}),
+                  ...Object.keys(v.by_tool || {}),
+                ]),
+              ].map((id) => [
+                id,
+                { ...(v.reset ? {} : old.by_tool?.[id]), ...v.by_tool?.[id] },
+              ]),
+            ),
+          }));
+        if (v.has_more) window.dispatchEvent(new Event("fluxyr:usage"));
+      } catch {
+        /* A later event or fallback poll retries. */
+      }
+    });
+    const changed = () => {
+      void poller.refresh();
+    };
+    poller.start();
+    window.addEventListener("fluxyr:usage", changed);
+    document.addEventListener("visibilitychange", changed);
     return () => {
       disposed = true;
-      clearInterval(timer);
+      poller.stop();
+      window.removeEventListener("fluxyr:usage", changed);
+      document.removeEventListener("visibilitychange", changed);
     };
-  }, []);
+  }, [session]);
   return (
     <UsageContext.Provider value={usage}>{children}</UsageContext.Provider>
   );

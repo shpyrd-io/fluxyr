@@ -18,8 +18,8 @@ Never replace an already published version; issue a new version for changes.
 3. Tag that commit and push the tag:
 
    ```sh
-   git tag -a v0.9.1 -m 'Fluxyr 0.9.1'
-   git push origin v0.9.1
+   git tag -a v0.9.2 -m 'Fluxyr 0.9.2'
+   git push origin v0.9.2
    ```
 
 The Release workflow checks the tag/version and main ancestry, runs CI plus the full PostgreSQL/Linux integration suite,
@@ -28,7 +28,7 @@ Consumers of the wheel do not need Node. Installing from a Git checkout requires
 building the UI first; use the released wheel for a minimal consumer application.
 
 For a failed publication, retry the workflow run. To dispatch against an existing
-tag, use `gh workflow run release.yml --ref v0.9.1 -f tag=v0.9.1`.
+tag, use `gh workflow run release.yml --ref v0.9.2 -f tag=v0.9.2`.
 Manual dispatch must use the tag as its ref so tests and artifacts match the tag.
 
 ## One-time PyPI setup

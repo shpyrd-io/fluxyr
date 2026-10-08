@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.9.2 — 2026-10-08
+
+- Recover failed workers in-process after draining the previous generation, reacquiring ownership, and preserving interrupted actions without replay. Add separate liveness/readiness probes and bounded recovery attempts.
+- Coalesce browser metadata refreshes, suppress refreshes during historical replay, pause hidden-tab polling, and use compact job summaries plus paginated incremental usage responses.
+- Reduce database polling, project only worker control fields, invalidate pause/cancel caches immediately, batch stream fragments, and index usage/event replay queries.
+
 ## 0.9.1 — 2026-10-07
 
 - Preserve conversation context after worker interruption or execution exceptions while closing unresolved calls without retrying them.

@@ -4,16 +4,18 @@ import copy
 import logging
 import threading
 import time
+
 from sqlalchemy import select, update
-from .models import MemoryTask, Session, Event
-from .database import row_dict
-from .core.memory.extraction_context import turn_messages
-from .core.memory.semantic import SemanticMemory
+
 from .core.memory.episodic import EpisodicMemory
+from .core.memory.extraction_context import turn_messages
 from .core.memory.implicit import ImplicitMemory
 from .core.memory.manager import MemoryManager
-from .runtime.interruptible import InterruptibleAdapter
+from .core.memory.semantic import SemanticMemory
+from .database import row_dict
+from .models import Event, MemoryTask, Session
 from .providers import make_adapter
+from .runtime.interruptible import InterruptibleAdapter
 from .usage import bind_usage, standalone_context
 
 LAYERS = ("semantic", "episodic", "implicit")
@@ -74,7 +76,7 @@ class MemoryQueue:
             except Exception:
                 log.exception("Memory queue iteration failed")
             # Extraction is background work; do not poll an empty queue 3x/sec.
-            self.engine.stopping.wait(1)
+            self.engine.stopping.wait(5)
 
     def tick(self):
         self.apply_ready()
@@ -144,6 +146,7 @@ class MemoryQueue:
                 adapter,
                 lambda: "cancel" if self.engine.stopping.is_set() else None,
                 self.slots,
+                tasks=self.engine.provider_tasks,
             )
             base = task["base"]
             manager = MemoryManager(

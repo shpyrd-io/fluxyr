@@ -4,14 +4,46 @@ import queue
 import threading
 
 
+class ThreadGroup:
+    """Track detached provider work so recovery cannot overlap generations."""
+
+    def __init__(self):
+        self.condition = threading.Condition()
+        self.active = 0
+
+    def start(self, target, name):
+        def run():
+            try:
+                target()
+            finally:
+                with self.condition:
+                    self.active -= 1
+                    self.condition.notify_all()
+
+        with self.condition:
+            self.active += 1
+        try:
+            threading.Thread(target=run, daemon=True, name=name).start()
+        except BaseException:
+            with self.condition:
+                self.active -= 1
+                self.condition.notify_all()
+            raise
+
+    def join(self):
+        with self.condition:
+            self.condition.wait_for(lambda: self.active == 0)
+
+
 class ModelInterrupted(RuntimeError):
     pass
 
 
 class InterruptibleAdapter:
-    def __init__(self, adapter, control, slots, emit=None):
+    def __init__(self, adapter, control, slots, emit=None, tasks=None):
         self.adapter, self.control, self.slots = adapter, control, slots
         self.emit = emit or (lambda *_: None)
+        self.tasks = tasks or ThreadGroup()
 
     def __getattr__(self, name):
         return getattr(self.adapter, name)
@@ -40,9 +72,7 @@ class InterruptibleAdapter:
                             except Exception:
                                 pass
 
-                        threading.Thread(
-                            target=close_connection, daemon=True, name="provider-close"
-                        ).start()
+                        self.tasks.start(close_connection, "provider-close")
                 raise ModelInterrupted("Model request interrupted")
 
         check()
@@ -74,7 +104,11 @@ class InterruptibleAdapter:
                     self.slots.release()
             result.put(outcome)
 
-        threading.Thread(target=run, daemon=True, name="provider-request").start()
+        try:
+            self.tasks.start(run, "provider-request")
+        except BaseException:
+            self.slots.release()
+            raise
         while True:
             check()
             try:

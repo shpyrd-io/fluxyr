@@ -3,6 +3,7 @@
 import copy
 
 from sqlalchemy import select
+from sqlalchemy.orm import load_only
 
 from .models import Effect, Event, Job, Session, Tool, ToolVersion
 from .store import TERMINAL
@@ -247,6 +248,7 @@ class Builds:
             parents = list(
                 s.scalars(
                     select(Job)
+                    .options(load_only(Job.id, Job.input, Job.status))
                     .where(Job.status.in_(["building", "waiting"]))
                     .with_for_update(skip_locked=True)
                 )
@@ -254,6 +256,15 @@ class Builds:
             for parent in parents:
                 dependencies = parent.input.get("build_dependencies", {})
                 if not dependencies:
+                    continue
+                if not s.scalar(
+                    select(Job.id)
+                    .where(
+                        Job.id.in_(list(dependencies.values())),
+                        Job.status.in_(TERMINAL),
+                    )
+                    .limit(1)
+                ):
                     continue
                 state = copy.deepcopy(parent.brain)
                 changed = False

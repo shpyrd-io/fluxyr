@@ -16,7 +16,7 @@ from flask import (
     send_from_directory,
 )
 from jsonschema import ValidationError
-from sqlalchemy import case, select
+from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
 from werkzeug.exceptions import HTTPException
 
@@ -24,7 +24,7 @@ from ._version import __version__
 from .config import Settings
 from .database import MAIN_SESSION, row_dict
 from .engine import Engine
-from .models import Job, MemoryTask, Message, Session, VaultItem
+from .models import Event, Job, MemoryTask, Message, Session, VaultItem
 
 
 def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=None):
@@ -64,11 +64,18 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
     if len(names) != len(set(names)):
         raise ValueError("Application tool conflicts with an engine or memory tool")
 
+    from .usage import UsageReports
+
+    usage_reports = UsageReports(engine.db)
+
     @routes.get("/api/usage")
     def usage():
-        from .usage import usage_report
-
-        return jsonify(usage_report(engine.db))
+        return jsonify(
+            usage_reports.get(
+                after=request.args.get("after", type=int),
+                session_id=request.args.get("session_id"),
+            )
+        )
 
     @app.before_request
     def local_origin():
@@ -135,12 +142,23 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
 
     @routes.get("/api/health")
     def health():
+        state = engine.monitor.health()
         return jsonify(
-            status="ok",
+            status="ok" if state["worker"] else "degraded",
             version=__version__,
             main_session=MAIN_SESSION,
-            worker=bool(engine.thread and engine.thread.is_alive()),
-        )
+            **state,
+        ), (200 if state["live"] else 503)
+
+    @routes.get("/api/health/live")
+    def live():
+        state = engine.monitor.health()
+        return jsonify(**state), (200 if state["live"] else 503)
+
+    @routes.get("/api/health/ready")
+    def ready():
+        state = engine.monitor.health()
+        return jsonify(**state), (200 if state["worker"] else 503)
 
     @routes.get("/api/sessions")
     def sessions():
@@ -160,6 +178,36 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
 
     @routes.get("/api/sessions/<sid>")
     def session_detail(sid):
+        if request.args.get("view") == "chat":
+            with engine.db.transaction() as s:
+                session = (
+                    s.execute(
+                        select(
+                            Session.id, Session.title, Session.kind, Session.status
+                        ).where(Session.id == sid)
+                    )
+                    .mappings()
+                    .first()
+                )
+                if not session:
+                    raise ValueError("Session not found")
+                # Cursor first: new terminal events arriving during the read still refresh.
+                cursor = (
+                    s.scalar(select(func.max(Event.id)).where(Event.session_id == sid))
+                    or 0
+                )
+                return jsonify(
+                    session=dict(session),
+                    event_cursor=cursor,
+                    messages=[
+                        row_dict(m)
+                        for m in s.scalars(
+                            select(Message)
+                            .where(Message.session_id == sid)
+                            .order_by(Message.created_at)
+                        )
+                    ],
+                )
         with engine.db.transaction() as s:
             session = s.get(Session, sid)
             if not session:
@@ -239,6 +287,41 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
 
     @routes.get("/api/jobs")
     def jobs():
+        if request.args.get("summary") == "1":
+            with engine.db.transaction() as s:
+                return jsonify(
+                    [
+                        compact_job(row)
+                        for row in s.execute(
+                            select(
+                                Job.id,
+                                Job.session_id,
+                                Job.routine_id,
+                                Job.status,
+                                Job.control,
+                                Job.created_at,
+                                Job.started_at,
+                                Job.finished_at,
+                                func.substr(Job.prompt, 1, 160).label("prompt"),
+                                Job.input["parent_job_id"]
+                                .as_string()
+                                .label("parent_job_id"),
+                                Job.input["builder"]["parent_job_id"]
+                                .as_string()
+                                .label("builder_parent"),
+                                case(
+                                    (
+                                        Job.status == "waiting",
+                                        Job.brain["pending_tools"],
+                                    ),
+                                    else_=None,
+                                ).label("pending"),
+                            )
+                            .order_by(Job.created_at.desc())
+                            .limit(200)
+                        ).mappings()
+                    ]
+                )
         with engine.db.transaction() as s:
             return jsonify(
                 [
@@ -657,3 +740,27 @@ def public_job(job):
         else []
     )
     return data
+
+
+def compact_job(row):
+    result = dict(row)
+    parent = result.pop("parent_job_id") or result.pop("builder_parent", None)
+    result.pop("builder_parent", None)
+    result["input"] = {"parent_job_id": parent} if parent else {}
+    result["pending"] = [
+        {
+            **{
+                k: entry[k]
+                for k in ("name", "call_id", "_request_id", "_status")
+                if k in entry
+            },
+            "_result": {
+                k: v
+                for k, v in (entry.get("_result") or {}).items()
+                if k in ("__pua__", "question", "__human__")
+            },
+        }
+        for entry in (result.get("pending") or [])
+        if entry.get("_status") == "parked" and not entry.get("_decision")
+    ]
+    return result

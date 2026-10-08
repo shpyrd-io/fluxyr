@@ -16,6 +16,8 @@ class ActivityEmitter:
         self.ancestors = []
         self.model_call_id = None
         self.usage_seen = False
+        self.fragment = None
+        self.fragment_time = 0
         seen = {job["id"]}
         parent = job["input"].get("parent_job_id") or job["input"].get(
             "builder", {}
@@ -32,6 +34,20 @@ class ActivityEmitter:
                 ).get("parent_job_id")
 
     def __call__(self, kind, payload):
+        with self.lock:
+            self._record(kind, payload)
+
+    def flush_fragments(self):
+        with self.lock:
+            if self.fragment:
+                kind, payload = self.fragment
+                self.store.emit(self.job["session_id"], self.job["id"], kind, payload)
+                self.fragment = None
+                self.fragment_time = time.monotonic()
+
+    def _record(self, kind, payload):
+        if kind not in ("delta", "reasoning"):
+            self.flush_fragments()
         if kind == "model_start":
             self.model_call_id = str(uuid.uuid4())
             self.usage_seen = False
@@ -51,7 +67,26 @@ class ActivityEmitter:
                 },
             )
         # Argument contents can include source or credentials: keep counters only.
-        if kind not in ("tool_argument_delta", "substream_delta"):
+        if kind in ("delta", "reasoning"):
+            # Preserve block boundaries and exact text; batch adjacent fragments
+            # rather than opening a transaction for every token. No background
+            # writer can survive its execution or write after a terminal event.
+            previous = self.fragment
+            if previous and (
+                previous[0] != kind
+                or {k: v for k, v in previous[1].items() if k != "text"}
+                != {k: v for k, v in payload.items() if k != "text"}
+                or len(previous[1].get("text", "")) + len(payload.get("text", ""))
+                > 8000
+            ):
+                self.flush_fragments()
+            if self.fragment:
+                self.fragment[1]["text"] += payload.get("text", "")
+            else:
+                self.fragment = (kind, dict(payload))
+            if time.monotonic() - self.fragment_time >= self.interval:
+                self.flush_fragments()
+        elif kind not in ("tool_argument_delta", "substream_delta"):
             self.store.emit(self.job["session_id"], self.job["id"], kind, payload)
         scope = payload.get("activity_scope", "main")
         with self.lock:

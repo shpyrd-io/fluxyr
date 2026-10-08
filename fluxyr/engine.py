@@ -8,7 +8,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 
 from .activity import ActivityEmitter
 from .builds import Builds
@@ -26,8 +26,9 @@ from .reactive import ReactiveRoutines
 from .routines import Routines, action_outcome
 from .runtime.effects import Effects
 from .runtime.human_protocol import response_for
-from .runtime.interruptible import InterruptibleAdapter
+from .runtime.interruptible import InterruptibleAdapter, ThreadGroup
 from .runtime.python_runner import PythonRunner
+from .runtime.worker_monitor import WorkerMonitor
 from .skills import Skills
 from .store import Store
 from .streaming import StreamRecorder
@@ -39,6 +40,8 @@ log = logging.getLogger(__name__)
 
 
 class Engine:
+    heartbeat_interval = 10
+
     def __init__(self, settings, adapter_factory=None):
         settings.prepare()
         self.settings = settings
@@ -74,6 +77,11 @@ class Engine:
         self.pool = None
         self.futures = set()
         self.provider_slots = threading.BoundedSemaphore(settings.workers)
+        self.provider_tasks = ThreadGroup()
+        self.monitor = WorkerMonitor(self)
+        self._control_lock = threading.Lock()
+        self._control_cache = {}
+        self.store.on_control = self._invalidate_control_cache
 
     def adapter(self):
         return (
@@ -89,8 +97,18 @@ class Engine:
     def _start(self):
         if self.thread:
             return
+        self._acquire_fence()
+        # Purge once per application lifetime, not on each recovery.
+        from .runtime.workspace_cleanup import purge_workspace
+
+        purge_workspace(self.settings, self.db)
+        self._launch_generation()
+        self.monitor.start()
+
+    def _acquire_fence(self):
         if self.db.engine.dialect.name == "postgresql":
             self.leader = self.db.engine.connect()
+            self.leader.execute(text("SET statement_timeout = 5000"))
             acquired = self.leader.scalar(
                 text("SELECT pg_try_advisory_lock(hashtext(current_schema()), 70399)")
             )
@@ -123,46 +141,91 @@ class Engine:
                     "Another Fluxyr worker already owns this SQLite database"
                 ) from None
             self._sqlite_leader = lock
-        # Retention runs once, after the process fence and before any execution.
-        from .runtime.workspace_cleanup import purge_workspace
 
-        purge_workspace(self.settings, self.db)
+    def _launch_generation(self):
         self.pool = ThreadPoolExecutor(
             max_workers=self.settings.workers, thread_name_prefix="agent"
         )
+        self.reactive.future = None
+        self.reactive.start()
+        self.memory_queue.start()
         self.thread = threading.Thread(
             target=self._supervise, name="agent-supervisor", daemon=True
         )
-        self.reactive.start()
         self.thread.start()
-        self.memory_queue.start()
 
-    def stop(self):
-        self.stopping.set()
-        if self.thread:
-            self.thread.join(timeout=5)
-        self.reactive.stop()
-        if self.pool:
-            self.pool.shutdown(wait=True)
-        if self.memory_queue.thread:
-            self.memory_queue.thread.join(timeout=5)
+    def _release_fence(self):
         if self.leader:
-            self.leader.execute(
-                text("SELECT pg_advisory_unlock(hashtext(current_schema()), 70399)")
-            )
-            self.leader.commit()
-            self.leader.close()
-            self.leader = None
+            try:
+                if not self.leader.invalidated:
+                    self.leader.execute(
+                        text(
+                            "SELECT pg_advisory_unlock(hashtext(current_schema()), 70399)"
+                        )
+                    )
+                    self.leader.commit()
+            except Exception:
+                log.warning("Lost database connection while releasing worker fence")
+                self.leader.invalidate()
+            finally:
+                self.leader.close()
+                self.leader = None
         if self._sqlite_leader:
             self._sqlite_leader.close()
             self._sqlite_leader = None
 
+    def _drain_generation(self):
+        self.stopping.set()
+        if self.thread:
+            self.thread.join()
+        self.reactive.stop()
+        if self.pool:
+            self.pool.shutdown(wait=True, cancel_futures=True)
+        if self.memory_queue.thread:
+            self.memory_queue.thread.join()
+        self.provider_tasks.join()
+        self._release_fence()
+
+    def _restart_generation(self):
+        # Every previous future, subprocess owner and detached provider call has
+        # finished before this method can run. Never reuse an ownership token.
+        old_owner = self.owner
+        try:
+            self._acquire_fence()
+            self.store.recover(owner=old_owner)
+            self.owner = str(uuid.uuid4())
+            self._control_cache.clear()
+            self.futures.clear()
+            if self.monitor.shutdown.is_set():
+                raise RuntimeError("Application is shutting down")
+            self.stopping.clear()
+            self._launch_generation()
+        except Exception:
+            self.stopping.set()
+            # A partial launch may already have background tasks; drain before
+            # another attempt, retaining the fence until they have finished.
+            self._drain_generation()
+            raise
+
+    def stop(self):
+        self.monitor.shutdown.set()
+        self.stopping.set()
+        if self.monitor.thread:
+            self.monitor.thread.join()
+        if self.monitor.draining:
+            self.monitor.draining.join()
+        else:
+            self._drain_generation()
+        self.monitor.state = "stopped"
+
     def _supervise(self):
         heartbeat = 0
         scheduled = 0
+        idle_delay = 0.35
         while not self.stopping.is_set():
             try:
-                if time.monotonic() - heartbeat > 10:
+                dispatched = False
+                if time.monotonic() - heartbeat > self.heartbeat_interval:
                     if self.leader:
                         self.leader.execute(text("SELECT 1"))
                         self.leader.commit()
@@ -172,9 +235,14 @@ class Engine:
                 if time.monotonic() - scheduled >= 1:
                     self.routines.tick()
                     self.reactive.tick()
+                    self.builds.resolve_dependencies()
                     scheduled = time.monotonic()
-                self.builds.resolve_dependencies()
-                self.futures = {f for f in self.futures if not f.done()}
+                for future in list(self.futures):
+                    if future.done():
+                        self.futures.remove(future)
+                        # An uncaught task exception must not leave a running
+                        # job with a lease that is renewed forever.
+                        future.result()
                 while (
                     len(self.futures) < self.settings.workers
                     and not self.stopping.is_set()
@@ -183,24 +251,48 @@ class Engine:
                     if not job:
                         break
                     self.futures.add(self.pool.submit(self.execute, job))
-            except Exception:
+                    dispatched = True
+                self.monitor.healthy()
+                idle_delay = (
+                    0.35 if dispatched or self.futures else min(2, idle_delay * 1.5)
+                )
+            except Exception as exc:
                 log.exception("Supervisor iteration failed")
-                if self.leader and self.leader.invalidated:
-                    self.stopping.set()  # lost the process fence; stop dispatch until explicit restart
-            self.stopping.wait(0.35)
+                self.monitor.failed(exc)
+                return
+            self.stopping.wait(idle_delay)
+
+    def _invalidate_control_cache(self):
+        with self._control_lock:
+            self._control_cache.clear()
 
     def _control(self, job_id):
         if self.stopping.is_set():
             return "pause"
-        with self.db.transaction() as s:
-            job = s.get(Job, job_id)
-            return job.control if job and job.owner == self.owner else "cancel"
+        # Shared across stream callbacks and subprocess polling for this job.
+        # A bounded 250 ms delay still keeps pause/cancel responsive.
+        with self._control_lock:
+            now = time.monotonic()
+            cached = self._control_cache.get(job_id)
+            if cached and now - cached[0] < 0.25:
+                return cached[1]
+            with self.db.transaction() as s:
+                row = s.execute(
+                    select(Job.control, Job.owner).where(Job.id == job_id)
+                ).first()
+            value = row.control if row and row.owner == self.owner else "cancel"
+            self._control_cache[job_id] = (time.monotonic(), value)
+            return value
 
     def execute(self, job):
-        if self.app is not None:
-            with self.app.app_context():
-                return self._execute(job)
-        return self._execute(job)
+        try:
+            if self.app is not None:
+                with self.app.app_context():
+                    return self._execute(job)
+            return self._execute(job)
+        finally:
+            with self._control_lock:
+                self._control_cache.pop(job["id"], None)
 
     def _execute(self, job):
         from .usage import bind_usage
@@ -314,6 +406,7 @@ class Engine:
                     lambda: self._control(jid),
                     self.provider_slots,
                     emit=emit,
+                    tasks=self.provider_tasks,
                 ),
                 tools=registry.definitions,
                 system_prompt=prompt,
@@ -485,6 +578,7 @@ class Engine:
                 outcome_status = (
                     "failed" if outcome["success"] is False else "succeeded"
                 )
+            emit.flush_fragments()
             self._settle(
                 job,
                 brain,
@@ -494,6 +588,7 @@ class Engine:
                 usage.__dict__,
             )
         except Exception as exc:
+            emit.flush_fragments()
             control = self._control(jid)
             if control not in ("pause", "cancel"):
                 log.exception("Job %s failed", jid)
@@ -523,6 +618,9 @@ class Engine:
         error=None,
         state_override=None,
     ):
+        if self.stopping.is_set() and self.monitor.state in ("recovering", "failed"):
+            status, outcome, text = "interrupted", None, ""
+            error = "Worker stopped. Review recorded effects before retrying."
         state = state_override or (brain.save() if brain else job.get("brain"))
         with self.db.transaction() as s:
             row = s.get(Job, job["id"], with_for_update=True)
@@ -538,7 +636,7 @@ class Engine:
             self.store.sync_session(s, session)
             if status == "cancelled":
                 self.store.retain_cancelled_context(session, row)
-            elif status == "failed" and error:
+            elif status in ("failed", "interrupted") and error:
                 # Keep acquired history while closing unresolved tool calls and
                 # clearing ERROR/pending state before the next user message.
                 self.store.retain_stopped_context(session, row)

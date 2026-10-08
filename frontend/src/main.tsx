@@ -27,6 +27,7 @@ import { Markdown } from "./markdown";
 import { LiveActivity } from "./live-activity";
 import { ActivityFeed } from "./live-activity-data";
 import { UsageProvider, UsageBadge } from "./usage";
+import { createPoller } from "./polling";
 import { ExecutionFlowPanel } from "./execution-flow-panel";
 import { buildTimeline } from "./timeline";
 import { executionDiagnostics } from "./execution-diagnostics";
@@ -115,15 +116,30 @@ function App() {
   const [model, setModel] = useState("");
   const [engineVersion, setEngineVersion] = useState("");
   const [agentName, setAgentName] = useState("Default Agent");
+  const [workerState, setWorkerState] = useState("starting");
   const [jobs, setJobs] = useState<RecordData[]>([]),
     [ready, setReady] = useState(false);
-  const refresh = useCallback(
+  const jobPoller = useMemo(
     () =>
-      api("/jobs")
-        .then(setJobs)
-        .catch((e) => setError(e.message)),
+      createPoller(async () => {
+        try {
+          const [items, health] = await Promise.all([
+            api("/jobs?summary=1"),
+            api("/health").catch(() => ({
+              worker: false,
+              worker_state: "failed",
+            })),
+          ]);
+          setJobs(items);
+          setReady(health.worker === true);
+          setWorkerState(health.worker_state || "stopped");
+        } catch (e: any) {
+          setError(e.message);
+        }
+      }),
     [],
   );
+  const refresh = jobPoller.refresh;
   useEffect(() => {
     api("/settings")
       .then((c) => {
@@ -137,10 +153,18 @@ function App() {
         setEngineVersion(h.version || "");
       })
       .catch((e) => setError(e.message));
-    refresh();
-    const id = setInterval(refresh, 4000);
-    return () => clearInterval(id);
-  }, [refresh]);
+    jobPoller.start();
+    const changed = () => {
+      void refresh();
+    };
+    document.addEventListener("visibilitychange", changed);
+    window.addEventListener("fluxyr:jobs", changed);
+    return () => {
+      jobPoller.stop();
+      document.removeEventListener("visibilitychange", changed);
+      window.removeEventListener("fluxyr:jobs", changed);
+    };
+  }, [refresh, jobPoller]);
   const open = (id: string) => {
     setSession(id);
     setPage("Workbench");
@@ -149,185 +173,196 @@ function App() {
     ["running", "waiting", "queued", "paused", "building"].includes(j.status),
   ).length;
   return (
-    <div className={"app" + (collapsed ? " sidebar-collapsed" : "")}>
-      <aside className="sidebar">
-        <a
-          aria-label="Fluxyr Agent workbench"
-          className="brand"
-          href="#"
-          onClick={(e) => {
-            e.preventDefault();
-            open(mainSession);
-          }}
-        >
-          <Logo className="brand-symbol" />
-          <div className="brand-name">
-            <Wordmark />
-          </div>
-        </a>
-        <div className="instance">
-          <span className={"dot " + (ready ? "online" : "")} />
-          <span className="instance-name" title={agentName}>
-            {agentName}
-          </span>
-        </div>
-        <p className="nav-heading">WORKSPACE</p>
-        <nav aria-label="Main navigation">
-          {pages.map((p, i) => (
-            <Button
-              key={p}
-              variant="GHOST"
-              aria-label={p}
-              aria-current={p === page ? "page" : undefined}
-              title={p}
-              className={p === page ? "selected" : ""}
-              onClick={() => {
-                setPage(p);
-                if (p === "Workbench") setSession(mainSession);
-              }}
-            >
-              {React.createElement(icons[i], { size: 17, strokeWidth: 1.6 })}
-              <span className="nav-label">{p}</span>
-              {p === "Executions" && active > 0 && <b>{active}</b>}
-            </Button>
-          ))}
-        </nav>
-        <div className="sidebar-bottom">
-          <StatusGrid
-            className="runtime-panel"
-            title="Local runtime"
-            columns={1}
-            systems={[
-              { name: "Worker", status: ready ? "ACTIVE" : "OFFLINE" },
-              {
-                name: "Jobs",
-                detail: String(active).padStart(2, "0"),
-                status: active ? "SCANNING" : "ACTIVE",
-              },
-            ]}
-          />
-          <Separator />
-          <div className="instance-footer">
-            ENGINE VERSION <span>{engineVersion ? `v${engineVersion}` : "—"}</span>
-          </div>
-        </div>
-      </aside>
-      <main>
-        <header className="topbar">
-          <div className="breadcrumb">
-            <Button
-              variant="GHOST"
-              className="sidebar-toggle"
-              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              onClick={() => setCollapsed(!collapsed)}
-            >
-              {collapsed ? (
-                <PanelLeftOpen size={17} />
-              ) : (
-                <PanelLeftClose size={17} />
-              )}
-            </Button>
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem>
-                  <BreadcrumbLink
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      open(mainSession);
-                    }}
-                  >
-                    Fluxyr Agent
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>
-                    {page === "Workbench" && session !== mainSession
-                      ? "Execution"
-                      : page}
-                  </BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-          </div>
-          <div className="topbar-status">
-            <span className="model-label">
-              <Cpu size={13} />
-              {model || "Model connection"}
-              <UsageBadge total />
-            </span>
-            <span className="local-label">
-              <span className={"dot " + (ready ? "online" : "")} />
-              {ready ? "SYSTEM ONLINE" : "CONNECTING"}
+    <UsageProvider session={session}>
+      <div className={"app" + (collapsed ? " sidebar-collapsed" : "")}>
+        <aside className="sidebar">
+          <a
+            aria-label="Fluxyr Agent workbench"
+            className="brand"
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              open(mainSession);
+            }}
+          >
+            <Logo className="brand-symbol" />
+            <div className="brand-name">
+              <Wordmark />
+            </div>
+          </a>
+          <div className="instance">
+            <span className={"dot " + (ready ? "online" : "")} />
+            <span className="instance-name" title={agentName}>
+              {agentName}
             </span>
           </div>
-        </header>
-        {error && (
-          <div className="error global-error" role="alert">
-            {error}
-            <Button onClick={() => setError("")}>×</Button>
-          </div>
-        )}
-        {page === "Workbench" ? (
-          <Chat
-            key={session}
-            session={session}
-            jobs={jobs.filter((j) => j.session_id === session)}
-            allJobs={jobs}
-            refreshJobs={refresh}
-            open={open}
-            onError={setError}
-          />
-        ) : page === "Executions" ? (
-          <div className="page">
-            <div className="page-title">
-              <div>
-                <p className="eyebrow">OBSERVABILITY</p>
-                <Typography variant="H1">Executions</Typography>
-                <p>Separate contexts. One place to see what happened.</p>
-              </div>
-              <Button onClick={refresh}>
-                <RefreshCw size={14} />
-                Refresh
+          <p className="nav-heading">WORKSPACE</p>
+          <nav aria-label="Main navigation">
+            {pages.map((p, i) => (
+              <Button
+                key={p}
+                variant="GHOST"
+                aria-label={p}
+                aria-current={p === page ? "page" : undefined}
+                title={p}
+                className={p === page ? "selected" : ""}
+                onClick={() => {
+                  setPage(p);
+                  if (p === "Workbench") setSession(mainSession);
+                }}
+              >
+                {React.createElement(icons[i], { size: 17, strokeWidth: 1.6 })}
+                <span className="nav-label">{p}</span>
+                {p === "Executions" && active > 0 && <b>{active}</b>}
               </Button>
-            </div>
-            <div className="table">
-              <div className="table-head">
-                <span>Execution</span>
-                <span>Status</span>
-                <span>Created</span>
-              </div>
-              {jobs
-                .filter((j) => j.session_id !== mainSession)
-                .map((j) => (
-                  <Button
-                    className="table-row"
-                    key={j.id}
-                    onClick={() => open(j.session_id)}
-                  >
-                    <span>
-                      <strong>{j.prompt.slice(0, 100)}</strong>
-                      <DebugId id={j.id} />
-                    </span>
-                    <Status status={j.status} />
-                    <span>{date(j.created_at)}</span>
-                  </Button>
-                ))}
-              {jobs.filter((j) => j.session_id !== mainSession).length ===
-                0 && (
-                <Empty
-                  title="No executions yet"
-                  text="Run a routine or test a Python action to start an isolated execution."
-                />
-              )}
+            ))}
+          </nav>
+          <div className="sidebar-bottom">
+            <StatusGrid
+              className="runtime-panel"
+              title="Local runtime"
+              columns={1}
+              systems={[
+                {
+                  name: "Worker",
+                  status: ready ? "ACTIVE" : workerState === "recovering" ? "SCANNING" : "OFFLINE",
+                  detail: ready ? undefined : workerState,
+                },
+                {
+                  name: "Jobs",
+                  detail: String(active).padStart(2, "0"),
+                  status: active ? "SCANNING" : "ACTIVE",
+                },
+              ]}
+            />
+            <Separator />
+            <div className="instance-footer">
+              ENGINE VERSION{" "}
+              <span>{engineVersion ? `v${engineVersion}` : "—"}</span>
             </div>
           </div>
-        ) : (
-          <Resources page={page} onError={setError} open={open} />
-        )}
-      </main>
-    </div>
+        </aside>
+        <main>
+          <header className="topbar">
+            <div className="breadcrumb">
+              <Button
+                variant="GHOST"
+                className="sidebar-toggle"
+                aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                onClick={() => setCollapsed(!collapsed)}
+              >
+                {collapsed ? (
+                  <PanelLeftOpen size={17} />
+                ) : (
+                  <PanelLeftClose size={17} />
+                )}
+              </Button>
+              <Breadcrumb>
+                <BreadcrumbList>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        open(mainSession);
+                      }}
+                    >
+                      Fluxyr Agent
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>
+                      {page === "Workbench" && session !== mainSession
+                        ? "Execution"
+                        : page}
+                    </BreadcrumbPage>
+                  </BreadcrumbItem>
+                </BreadcrumbList>
+              </Breadcrumb>
+            </div>
+            <div className="topbar-status">
+              <span className="model-label">
+                <Cpu size={13} />
+                {model || "Model connection"}
+                <UsageBadge total />
+              </span>
+              <span className="local-label">
+                <span className={"dot " + (ready ? "online" : "")} />
+                {ready
+                  ? "SYSTEM ONLINE"
+                  : workerState === "recovering"
+                    ? "RECONNECTING WORKER"
+                    : workerState.toUpperCase()}
+              </span>
+            </div>
+          </header>
+          {error && (
+            <div className="error global-error" role="alert">
+              {error}
+              <Button onClick={() => setError("")}>×</Button>
+            </div>
+          )}
+          {page === "Workbench" ? (
+            <Chat
+              key={session}
+              session={session}
+              jobs={jobs.filter((j) => j.session_id === session)}
+              allJobs={jobs}
+              refreshJobs={refresh}
+              open={open}
+              onError={setError}
+            />
+          ) : page === "Executions" ? (
+            <div className="page">
+              <div className="page-title">
+                <div>
+                  <p className="eyebrow">OBSERVABILITY</p>
+                  <Typography variant="H1">Executions</Typography>
+                  <p>Separate contexts. One place to see what happened.</p>
+                </div>
+                <Button onClick={refresh}>
+                  <RefreshCw size={14} />
+                  Refresh
+                </Button>
+              </div>
+              <div className="table">
+                <div className="table-head">
+                  <span>Execution</span>
+                  <span>Status</span>
+                  <span>Created</span>
+                </div>
+                {jobs
+                  .filter((j) => j.session_id !== mainSession)
+                  .map((j) => (
+                    <Button
+                      className="table-row"
+                      key={j.id}
+                      onClick={() => open(j.session_id)}
+                    >
+                      <span>
+                        <strong>{j.prompt.slice(0, 100)}</strong>
+                        <DebugId id={j.id} />
+                      </span>
+                      <Status status={j.status} />
+                      <span>{date(j.created_at)}</span>
+                    </Button>
+                  ))}
+                {jobs.filter((j) => j.session_id !== mainSession).length ===
+                  0 && (
+                  <Empty
+                    title="No executions yet"
+                    text="Run a routine or test a Python action to start an isolated execution."
+                  />
+                )}
+              </div>
+            </div>
+          ) : (
+            <Resources page={page} onError={setError} open={open} />
+          )}
+        </main>
+      </div>
+    </UsageProvider>
   );
 }
 export function Empty({ title, text }: { title: string; text: string }) {
@@ -368,7 +403,7 @@ function Chat({
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const diagnosticText = useMemo(
-    () => diagnosticsOpen ? executionDiagnostics(events) : "",
+    () => (diagnosticsOpen ? executionDiagnostics(events) : ""),
     [diagnosticsOpen, events],
   );
   const diagnosticsTrigger = useRef<HTMLButtonElement>(null);
@@ -377,10 +412,12 @@ function Chat({
     contentRef = useRef<HTMLDivElement>(null),
     followLatest = useRef(true);
   const [showLatest, setShowLatest] = useState(false);
+  const replayCursor = useRef<number | null>(null);
   const load = useCallback(
     () =>
-      api("/sessions/" + session)
+      api("/sessions/" + session + "?view=chat")
         .then((d) => {
+          replayCursor.current ??= d.event_cursor;
           setMessages(d.messages);
           setLoaded(true);
           setTitle(d.session.title);
@@ -390,9 +427,13 @@ function Chat({
     [session, onError],
   );
   useEffect(() => {
-    load();
+    replayCursor.current = null;
+    const sessionPoller = createPoller(load, 60_000);
+    sessionPoller.start();
     setEvents([]);
-    const stream = new EventSource("/api/events?activity=live&session_id=" + session);
+    const stream = new EventSource(
+      "/api/events?activity=live&session_id=" + session,
+    );
     let buffer: RecordData[] = [];
     let flush: ReturnType<typeof setTimeout> | undefined;
     stream.onmessage = (e) => {
@@ -417,17 +458,43 @@ function Chat({
                 }),
               ];
             });
-          if (batch.some((event) => [
-            "started", "building", "succeeded", "failed", "cancelled",
-            "interrupted", "waiting", "paused", "queued",
-          ].includes(event.type))) {
-            load();
+          if (
+            batch.some(
+              (event) =>
+                event.type === "usage" &&
+                replayCursor.current !== null &&
+                event.id > replayCursor.current,
+            )
+          )
+            window.dispatchEvent(new Event("fluxyr:usage"));
+          if (
+            batch.some(
+              (event) =>
+                replayCursor.current !== null &&
+                event.id > replayCursor.current &&
+                [
+                  "started",
+                  "building",
+                  "succeeded",
+                  "failed",
+                  "cancelled",
+                  "interrupted",
+                  "waiting",
+                  "paused",
+                  "queued",
+                  "execution_report",
+                ].includes(event.type),
+            )
+          ) {
+            void sessionPoller.refresh();
+            window.dispatchEvent(new Event("fluxyr:usage"));
             refreshJobs();
           }
         }, 50);
     };
     return () => {
       stream.close();
+      sessionPoller.stop();
       clearTimeout(flush);
     };
   }, [session, load, refreshJobs, generation, activityFeed]);
@@ -607,9 +674,7 @@ function Chat({
             </DialogHeader>
             <DialogBody>
               {diagnosticText ? (
-                <pre className="execution-log-output">
-                  {diagnosticText}
-                </pre>
+                <pre className="execution-log-output">{diagnosticText}</pre>
               ) : (
                 <Typography variant="MUTED">
                   No tool failures or runtime logs recorded for this session.
@@ -991,9 +1056,7 @@ function EventCard({
       </Button>
     );
   if (e.type === "preview")
-    return (
-      <LocalFilePreview url={e.payload.url} title={e.payload.title} />
-    );
+    return <LocalFilePreview url={e.payload.url} title={e.payload.title} />;
   if (e.type === "progress") return null;
   return (
     <details className="tool-event">
@@ -1037,8 +1100,9 @@ function EventCard({
       </div>
       {e.payload.interrupted_status && (
         <p className="error">
-          Execution {e.payload.interrupted_status} before this tool recorded a final
-          result. Review execution diagnostics before retrying; effects may have occurred.
+          Execution {e.payload.interrupted_status} before this tool recorded a
+          final result. Review execution diagnostics before retrying; effects
+          may have occurred.
         </p>
       )}
       {e.type === "tool_end" &&
@@ -1070,8 +1134,8 @@ function EventCard({
   );
 }
 createRoot(document.getElementById("root")!).render(
-  <UsageProvider>
+  <>
     <ApprovalKeyDialog />
     <App />
-  </UsageProvider>,
+  </>,
 );
