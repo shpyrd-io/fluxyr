@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.9.5 — 2026-10-08
+
 - Add light, dark and system themes with a header selector, browser persistence and automatic operating-system appearance updates.
 
 - Store new browser captures and downloads under `data/tmp/browser`, using full UUIDs encoded as 22-character base62 capture names. The embedded worker removes files older than 30 days from `data/tmp` once daily, outside the execution queue.
