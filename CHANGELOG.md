@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.7 — 2026-10-08
+
+- Load SQLite only when migrating a SQLite database, so PostgreSQL installations can start without the system SQLite library.
+
 ## 0.9.6 — 2026-10-08
 
 - Add continuous Worker routine triggers with supervised Python listeners, private Vault access, durable event/checkpoint acknowledgements, collection and smoke tests, bounded diagnostics, and reuse of reactive session routing and concurrency. Add UI/API/native tools and examples for uptime and AgentMail. Upgrade database schema to 7.

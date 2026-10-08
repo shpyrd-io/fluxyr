@@ -5,7 +5,6 @@ import hashlib
 import json
 import os
 import shutil
-import sqlite3
 import stat
 import tempfile
 from contextlib import ExitStack, contextmanager
@@ -68,6 +67,29 @@ def _copy_file(source, target):
     shutil.copy2(source, target, follow_symlinks=False)
     if _digest(source) != digest or _digest(target) != digest:
         raise RuntimeError(f"File changed or copy verification failed: {source}")
+
+
+def _backup_sqlite(source, target):
+    # PostgreSQL installations may not include the system SQLite library.
+    # Only load the driver when migrating an actual SQLite database.
+    try:
+        import sqlite3
+    except ImportError as exc:
+        raise RuntimeError(
+            "Migrating a SQLite database requires Python's sqlite3 module "
+            "and the system SQLite library"
+        ) from exc
+    try:
+        with ExitStack() as stack:
+            original = sqlite3.connect(source.as_uri() + "?mode=ro", uri=True)
+            stack.callback(original.close)
+            copied = sqlite3.connect(target)
+            stack.callback(copied.close)
+            original.backup(copied)
+            if copied.execute("PRAGMA integrity_check").fetchone() != ("ok",):
+                raise RuntimeError("SQLite integrity verification failed")
+    except sqlite3.Error as exc:
+        raise RuntimeError(f"SQLite backup failed: {exc}") from exc
 
 
 def _copy_tree(source, target):
@@ -214,15 +236,7 @@ def migrate_storage(source, destination, *, apply=False, database_url=""):
             database = legacy / "fluxyr.sqlite3"
             if database.exists():
                 _regular(database)
-                original = sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)
-                copied = sqlite3.connect(stage / "state/fluxyr.sqlite3")
-                try:
-                    original.backup(copied)
-                    if copied.execute("PRAGMA integrity_check").fetchone() != ("ok",):
-                        raise RuntimeError("SQLite integrity verification failed")
-                finally:
-                    copied.close()
-                    original.close()
+                _backup_sqlite(database, stage / "state/fluxyr.sqlite3")
             checkpoint = legacy / "tmp-cleanup-at"
             if checkpoint.exists():
                 _copy_file(checkpoint, stage / "runtime/tmp-cleanup-at")
@@ -277,6 +291,6 @@ def migration_cli(arguments):
             apply=args.apply,
             database_url=os.getenv("DATABASE_URL", ""),
         )
-    except (ValueError, RuntimeError, OSError, sqlite3.Error) as exc:
+    except (ValueError, RuntimeError, OSError) as exc:
         parser.exit(2, f"Storage migration failed: {exc}\n")
     print(json.dumps(report, indent=2))

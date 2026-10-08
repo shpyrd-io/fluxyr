@@ -3,6 +3,9 @@
 import fcntl
 import json
 import sqlite3
+import subprocess
+import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -11,6 +14,77 @@ from cryptography.fernet import Fernet
 from fluxyr.config import Settings
 from fluxyr.file_skills import load_file_skills
 from fluxyr.storage import MARKER, migrate_storage
+
+
+def test_postgres_configuration_and_file_migration_without_sqlite(tmp_path):
+    # A fresh interpreter reproduces slim hosts whose _sqlite3 cannot load.
+    script = textwrap.dedent("""
+        import builtins
+        import sys
+        from pathlib import Path
+
+        original_import = builtins.__import__
+        def without_sqlite(name, *args, **kwargs):
+            if name.split('.')[0] in ('sqlite3', '_sqlite3'):
+                raise ImportError('libsqlite3.so.0: cannot open shared object file')
+            return original_import(name, *args, **kwargs)
+        builtins.__import__ = without_sqlite
+
+        from fluxyr import Fluxyr
+        from fluxyr.config import Settings
+        from fluxyr.storage import migrate_storage, migration_cli
+
+        root = Path(sys.argv[1])
+        settings = Settings(root=root / 'instance', project=root,
+                            database_url='postgresql+psycopg://localhost/unused')
+        settings.prepare()
+        assert settings.database_url.startswith('postgresql')
+        legacy = root / 'legacy'
+        (legacy / '.runtime').mkdir(parents=True)
+        (legacy / '.runtime/vault.key').write_text('preserve-key')
+        migrated = root / 'migrated'
+        assert migrate_storage(legacy, migrated, apply=True)['applied']
+        assert (migrated / 'state/vault.key').read_text() == 'preserve-key'
+        assert 'sqlite3' not in sys.modules
+
+        # CLI errors must also work without importing SQLite in an except clause.
+        try:
+            migration_cli(['--from', str(root / 'absent'), '--to', str(root / 'unused')])
+        except SystemExit as exc:
+            assert exc.code == 2
+        else:
+            raise AssertionError('Invalid migration should fail')
+    """)
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(tmp_path)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_sqlite_backup_failure_keeps_original_and_reports_cli_error(
+    tmp_path, monkeypatch, capsys
+):
+    from fluxyr.storage import migration_cli
+
+    runtime = tmp_path / "legacy/.runtime"
+    runtime.mkdir(parents=True)
+    database = runtime / "fluxyr.sqlite3"
+    database.write_bytes(b"not a sqlite database")
+    destination = tmp_path / "destination"
+    monkeypatch.setenv("DATABASE_URL", "")
+    with pytest.raises(SystemExit) as error:
+        migration_cli(
+            ["--from", str(runtime.parent), "--to", str(destination), "--apply"]
+        )
+    assert error.value.code == 2
+    assert "SQLite backup failed" in capsys.readouterr().err
+    assert database.read_bytes() == b"not a sqlite database"
+    assert not destination.exists()
+    assert not list(tmp_path.glob(".fluxyr-migration-*"))
 
 
 def legacy_instance(root):
