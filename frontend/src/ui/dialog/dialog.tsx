@@ -22,7 +22,7 @@ const DialogOverlay = React.forwardRef<
       "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className,
     )}
-    style={{ background: "rgba(7, 5, 15, 0.88)" }}
+    style={{ background: "var(--overlay)" }}
     {...props}
   />
 ));

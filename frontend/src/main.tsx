@@ -1,4 +1,5 @@
 import { Status, statusLabel } from "./status";
+import { ThemeSelector } from "./theme-selector";
 import { ApprovalKeyDialog } from "./approval-key-dialog";
 import { StatusGrid } from "./ui/status-grid/status-grid";
 import { Typography } from "./ui/typography/typography";
@@ -77,6 +78,7 @@ import "@fontsource/ibm-plex-mono/latin-600.css";
 import "@fontsource/ibm-plex-mono/latin-700.css";
 import { Spinner } from "./ui/spinner/spinner";
 import "./styles/scificn.css";
+import "./styles/themes.css";
 import "./style.css";
 
 type Page =
@@ -295,6 +297,7 @@ function App() {
                     ? "RECONNECTING WORKER"
                     : workerState.toUpperCase()}
               </span>
+              <ThemeSelector />
             </div>
           </header>
           {error && (

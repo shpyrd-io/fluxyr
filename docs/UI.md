@@ -6,6 +6,22 @@ Dialog and ASCII Spinner components from https://www.scificn.dev/r. Registry
 hashes and the source theme revision are in `frontend/src/ui/scificn-source.json`;
 local adaptations are described in NOTICE.
 
+## Appearance
+
+Use the theme icon at the right of the header, beside the system status, to choose
+**Light**, **Dark** or **System**. System is the default and follows the operating
+system's appearance, including changes while the page is open. The preference is
+saved in this browser and shared across tabs; no server setting is required.
+
+Both themes cover the chat, execution sequence, forms, dialogs, navigation and
+status colors. The logo wordmark adapts to the background. Colors are defined as
+shared semantic tokens in `frontend/src/styles/themes.css`; component layout
+overrides live in `frontend/src/style.css`. The initial theme is applied before
+the app renders to avoid a flash of the wrong background.
+
+The opt-in `tests/test_theme_ui.py` browser test checks system changes, explicit
+overrides, persistence after reload, keyboard selection and the mobile control.
+
 ## Component consistency review
 
 The workflow uses Card/Header/Title/Content for each persisted node, preserving
@@ -30,7 +46,7 @@ original runner logs while the conversation contains no inline progress logs.
 19 frontend tests and the production TypeScript/Vite build passed. No new model
 calls or changes to production resources were made for this UI validation.
 
-Fluxyr overrides the library tokens in `frontend/src/style.css`, using the supplied
+Fluxyr overrides the library tokens in `frontend/src/styles/themes.css`, using the supplied
 `assets/symbol.svg` and `assets/logo-text.svg`. The symbol is white on #756ce0
 (rgb 117, 108, 224), with rounded corners. Fonts are bundled locally.
 

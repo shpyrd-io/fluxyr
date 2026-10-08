@@ -58,7 +58,7 @@ const SelectContent = React.forwardRef<
         "relative z-50 min-w-[8rem] max-h-[var(--radix-select-content-available-height)] overflow-hidden",
         "border border-[var(--border)] bg-[var(--surface-raised)]",
         "rounded-none",
-        "shadow-[0_8px_24px_#07050F99]",
+        "shadow-[var(--popover-shadow)]",
         position === "popper" && "w-[var(--radix-select-trigger-width)]",
         className,
       )}

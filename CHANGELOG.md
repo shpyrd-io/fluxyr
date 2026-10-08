@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add light, dark and system themes with a header selector, browser persistence and automatic operating-system appearance updates.
+
 - Store new browser captures and downloads under `data/tmp/browser`, using full UUIDs encoded as 22-character base62 capture names. The embedded worker removes files older than 30 days from `data/tmp` once daily, outside the execution queue.
 
 - Add bounded parallel routine execution with queued overflow, per-session ordering, human-wait slot release, and the existing global worker cap. Enforce queue mode when workers claim jobs.

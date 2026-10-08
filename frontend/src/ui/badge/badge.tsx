@@ -43,12 +43,14 @@ function Badge({ className, variant, children, ...props }: BadgeProps) {
         variant === "ACTIVE"
           ? {
               textShadow: "var(--text-glow-green)",
-              boxShadow: "inset 0 0 8px #00ed3f11",
+              boxShadow:
+                "inset 0 0 8px color-mix(in srgb, var(--color-green) 7%, transparent)",
             }
           : variant === "CRITICAL"
             ? {
                 textShadow: "var(--text-glow-red)",
-                boxShadow: "inset 0 0 8px #cc220011",
+                boxShadow:
+                  "inset 0 0 8px color-mix(in srgb, var(--color-red) 7%, transparent)",
               }
             : undefined
       }

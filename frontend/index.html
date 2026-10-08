@@ -4,6 +4,27 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#090c14" />
+    <script>
+      // Resolve before the first paint, including when storage is unavailable.
+      (() => {
+        let mode = "system";
+        try {
+          const saved = localStorage.getItem("fluxyr-theme");
+          if (saved === "light" || saved === "dark") mode = saved;
+        } catch {}
+        const theme =
+          mode === "system"
+            ? matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light"
+            : mode;
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.dataset.themeMode = mode;
+        document.documentElement.style.colorScheme = theme;
+        document.querySelector('meta[name="theme-color"]').content =
+          theme === "dark" ? "#090c14" : "#f6f7fb";
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Fluxyr Agent</title>
   </head>

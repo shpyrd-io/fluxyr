@@ -1,0 +1,83 @@
+/* Shared roles for both Fluxyr and the bundled Scificn components. */
+:root {
+  --brand: #756ce0;
+  --brand-soft: #aaa3ff;
+  --background: #090c14;
+  --chrome: #0c0f19;
+  --surface: #10141f;
+  --surface-raised: #151a28;
+  --code-surface: #0c101a;
+  --composer-surface: #121622;
+  --border: #282e41;
+  --border-strong: #46506b;
+  --text-secondary: #e0e3ef;
+  --text-body: #cdd3e1;
+  --text-muted: #929bb1;
+  --success: #88c9b6;
+  --info: #7db6ca;
+  --color-amber: #e9b773;
+  --color-red: #ef909a;
+  --button-background: #6258c4;
+  --button-hover: #695dcd;
+  --on-accent: #ffffff;
+  --overlay: rgb(7 5 15 / 88%);
+  --overlay-shadow: rgb(0 0 0 / 53%);
+  --popover-shadow: 0 8px 24px rgb(7 5 15 / 40%);
+  --wordmark-filter: brightness(0) invert(1);
+  color-scheme: dark;
+
+  --border-active: var(--brand);
+  --text-primary: var(--brand-soft);
+  --text-warning: var(--color-amber);
+  --text-danger: var(--color-red);
+  --muted: var(--text-muted);
+  --color-green: var(--brand-soft);
+  --color-blue: var(--info);
+  --color-teal: var(--success);
+  --color-bg: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --accent-primary: var(--brand);
+  --accent-secondary: var(--info);
+  --accent-warning: var(--color-amber);
+  --selection-background: color-mix(in srgb, var(--brand) 28%, transparent);
+  --glow-green:
+    0 0 0 1px color-mix(in srgb, var(--brand) 20%, transparent),
+    0 0 18px color-mix(in srgb, var(--brand) 7%, transparent);
+  --glow-red: 0 0 0 1px color-mix(in srgb, var(--color-red) 20%, transparent);
+  --glow-amber: 0 0 0 1px
+    color-mix(in srgb, var(--color-amber) 20%, transparent);
+  --glow-blue: 0 0 0 1px color-mix(in srgb, var(--info) 20%, transparent);
+  --text-glow-green: none;
+  --text-glow-red: none;
+  --text-glow-amber: none;
+  --text-glow-blue: none;
+  --font-sans: var(--font-mono);
+}
+
+:root[data-theme="light"] {
+  --brand: #6654cb;
+  --brand-soft: #5140b5;
+  --background: #f6f7fb;
+  --chrome: #eef1f8;
+  --surface: #ffffff;
+  --surface-raised: #edf0f7;
+  --code-surface: #eef1f7;
+  --composer-surface: #ffffff;
+  --border: #c5ccdc;
+  --border-strong: #9da9c1;
+  --text-secondary: #202a3d;
+  --text-body: #293448;
+  --text-muted: #58647a;
+  --success: #226f59;
+  --info: #286078;
+  --color-amber: #875110;
+  --color-red: #b22c41;
+  --button-background: #6250c3;
+  --button-hover: #5543b1;
+  --overlay: rgb(30 39 61 / 38%);
+  --overlay-shadow: rgb(30 39 61 / 14%);
+  --popover-shadow: 0 8px 24px rgb(30 39 61 / 16%);
+  --wordmark-filter: brightness(0);
+  color-scheme: light;
+}
