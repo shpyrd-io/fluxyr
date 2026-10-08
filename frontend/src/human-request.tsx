@@ -1,3 +1,4 @@
+import { BrowserPrivateInput } from "./browser-private-input";
 import { VaultRequest } from "./vault-request";
 import { useState } from "react";
 import { api, type RecordData } from "./api";
@@ -182,7 +183,9 @@ function HumanQuestion({
 }
 
 export function HumanRequest(props: Parameters<typeof HumanQuestion>[0]) {
-  return props.pending.name === "manage_vault_credential" ? (
+  return props.pending.name === "browser_request_input" ? (
+    <BrowserPrivateInput {...props} />
+  ) : props.pending.name === "manage_vault_credential" ? (
     <VaultRequest {...props} />
   ) : (
     <HumanQuestion {...props} />

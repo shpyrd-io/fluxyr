@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add encrypted TOTP Vault items, private browser field filling and session-routed human input without putting values in model tool arguments or results.
+- Add an optional public-browser 3.0 headless Chrome controller using local pipes, explicit page captures, bounded session lifetimes and an optional Docker browser target.
+- Render relative screenshot paths through the Files preview route, including WebP images in existing chat messages.
+
 ## 0.9.2 — 2026-10-08
 
 - Recover failed workers in-process after draining the previous generation, reacquiring ownership, and preserving interrupted actions without replay. Add separate liveness/readiness probes and bounded recovery attempts.

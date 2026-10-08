@@ -189,3 +189,13 @@ both layers. Dedicated listing, decisions, credential submissions and assets all
 use this prefix; integrations do not need to bypass `/preview` or general file APIs.
 Never exempt this prefix upstream while leaving the Fluxyr key empty unless
 unauthenticated approvals are intended.
+
+## Private browser input
+
+With browser tools enabled, `kind=browser_private_input` identifies a private
+browser field request. Follow `submission_url` and POST `{"value":"..."}` for a
+temporary value, or `{}` when `request.payload.vault_item_id` is present to authorize
+that saved item. Values never go to `decision_url`, chat or ordinary `ask_human`.
+Only safe delivery outcomes enter execution history. Both the approvals route
+and the `/api/jobs/{id}/private-input/{request_id}` alias require the configured
+approval Bearer key. See [browser setup and lifecycle](BROWSER.md).

@@ -39,7 +39,7 @@ fluxyr = "fluxyr.__main__:main"
 include = ["fluxyr*"]
 
 [tool.setuptools.package-data]
-fluxyr = ["prompts/*.md", "static/**/*"]
+fluxyr = ["prompts/*.md", "static/**/*", "browser_runtime/*.mjs", "browser_runtime/*.json", "browser_runtime/*.yaml", "browser_runtime/*.txt", "browser_runtime/*.sh"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

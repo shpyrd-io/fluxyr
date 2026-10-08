@@ -478,6 +478,82 @@ class Registry:
         from ..interactions.vault import OAUTH_PREFILL_SCHEMA, credential_request
         from ..vault import TYPES
 
+        if e.browsers.enabled:
+            from ..interactions.browser import request_input
+
+            target_fields = {
+                "origin": {
+                    "type": "string",
+                    "description": "Exact destination origin, e.g. https://portal.example.com (include non-default port). Checked against the field's frame.",
+                },
+                "ref": {
+                    "type": "string",
+                    "description": "Field ref from view_page. Supply ref OR selector.",
+                },
+                "selector": {
+                    "type": "string",
+                    "description": "Unique CSS selector, as an alternative to ref.",
+                },
+                "vault_item_id": {
+                    "type": "string",
+                    "description": "Existing item ID from vault_list. A totp item generates its code just before filling.",
+                },
+                "field": {
+                    "type": "string",
+                    "enum": ["value", "key", "password", "access_token", "code"],
+                },
+                "submit": {
+                    "type": "boolean",
+                    "description": "Submit the field's containing form immediately after filling. Default false; use only when submission is intended.",
+                },
+            }
+
+            def browser_fill(a, *_):
+                a = dict(a)
+                item_id = a.pop("vault_item_id")
+                field = a.pop("field", None)
+                submit = a.pop("submit", False)
+                target = e.browsers.prepare(self.job["session_id"], stop=self.stop, **a)
+                return e.browsers.fill(
+                    target,
+                    vault_item_id=item_id,
+                    field=field,
+                    submit=submit,
+                    stop=self.stop,
+                )
+
+            add(
+                "browser",
+                'Control this session\'s headless Chrome. Start with tool=help (arguments_json={}) to discover tools, or help with {"tool":"navigate"} for the exact schema. Supports navigate, view_page, click, type for PUBLIC text, capture_image, tabs, evaluate and close. capture_image returns a file path and a preview URL: use read with the path to inspect it; use the returned url in Markdown ![description](url) to show it to the user. Never pass credentials here; use browser_fill_private or browser_request_input. Inspect again after browser errors; do not blindly repeat submissions.',
+                {
+                    "tool": S,
+                    "arguments_json": json_payload(
+                        "Browser tool arguments; {} when none"
+                    ),
+                },
+                ["tool"],
+                lambda a, *_: e.browsers.call(
+                    self.job["session_id"], a["tool"], a.get("arguments"), self.stop
+                ),
+                prepare=lambda a: decode_payloads(a, {"arguments": dict}),
+                effect=True,
+            )
+            add(
+                "browser_fill_private",
+                "Fill a field directly from Vault, without returning or logging its value. Uses saved credentials automatically in this isolated environment. TOTP is generated only when the field is ready; use submit=true for immediate form submission. No secret values belong in these arguments. Inspect the browser first to identify the exact destination. Use browser_request_input when human input or explicit consent is needed.",
+                target_fields,
+                ["origin", "vault_item_id"],
+                browser_fill,
+                effect=True,
+            )
+            add(
+                "browser_request_input",
+                "Pause for a private input card in the originating conversation. Without vault_item_id the human supplies a temporary password/SMS/email code directly to Chrome; with vault_item_id the card authorizes that Vault item. The value never enters the agent context. Browser/field requests expire after 10 minutes or browser restart. Use manage_vault_credential to create a missing reusable credential instead.",
+                {**target_fields, "title": {"type": "string", "maxLength": 100}},
+                ["origin"],
+                lambda a, *_: request_input(e, self.job, a, self.stop),
+            )
+
         add(
             "manage_vault_credential",
             "Open an embedded private Vault form and wait for the user to save or cancel. Use create when a required credential is missing, edit for an existing ID from vault_list. Prefill public OAuth settings (token_url, authorization_url, scope, token_auth_method) in oauth_config from the provider documentation. Never pass credential values in chat or ask_human. Returns only the saved Vault ID/name. Declare that name in action secrets and use secret(name) at runtime.",
@@ -766,6 +842,9 @@ class Registry:
             )
         if self.job["input"].get("builder"):
             allowed = {
+                "browser",
+                "browser_fill_private",
+                "browser_request_input",
                 "get_current_datetime",
                 "submit_plan",
                 "create_action",

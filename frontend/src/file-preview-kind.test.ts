@@ -1,12 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { filePreviewKind, filePreviewUrl } from "./file-preview-kind.ts";
+import { filePreviewKind, filePreviewUrl, markdownImageUrl } from "./file-preview-kind.ts";
 
 test("PDFs and images open as previews instead of UTF-8 editors", () => {
   assert.equal(filePreviewKind("extrato.PDF"), "pdf");
   assert.equal(filePreviewKind("certificates/scan.png"), "image");
   assert.equal(filePreviewKind("report.pdf/notes.txt"), "frame");
   assert.equal(filePreviewKind("report.html"), "frame");
+});
+
+test("Markdown screenshot paths use the Files preview route", () => {
+  assert.equal(markdownImageUrl("browser/capture.webp"), "/preview/browser/capture.webp");
+  assert.equal(markdownImageUrl("./browser/my%20capture.webp"), "/preview/browser/my%20capture.webp");
+  for (const url of ["", "/preview/browser/capture.webp", "https://example.com/image.webp", "//example.com/image.webp"]) {
+    assert.equal(markdownImageUrl(url), url);
+  }
 });
 
 test("preview URLs preserve filenames containing accents and URL delimiters", () => {

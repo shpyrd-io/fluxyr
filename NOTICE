@@ -29,3 +29,7 @@ and included in the packaged UI.
 PDF previews use Mozilla PDF.js (pdfjs-dist), distributed under the Apache
 License 2.0. Its license is included in frontend/public/licenses/PDFjs-LICENSE
 and in the packaged UI. The viewer and worker are served locally.
+
+The optional browser controller integrates public-browser 3.0.0 by Silbercue.
+Its tool-schemas.json is generated from the public-browser tool catalogue.
+The MIT license is included at fluxyr/browser_runtime/PUBLIC_BROWSER_LICENSE.txt.

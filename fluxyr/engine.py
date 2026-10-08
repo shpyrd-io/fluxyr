@@ -52,6 +52,9 @@ class Engine:
         self.db.initialize()
         self.store = Store(self.db)
         self.vault = Vault(self.db)
+        from .browser import Browsers
+
+        self.browsers = Browsers(self)
         self.files = Files(settings.data)
         self.workspace_tools = WorkspaceTools(settings)
         self.runner = PythonRunner(settings, self.vault)
@@ -216,6 +219,7 @@ class Engine:
             self.monitor.draining.join()
         else:
             self._drain_generation()
+        self.browsers.close()
         self.monitor.state = "stopped"
 
     def _supervise(self):
@@ -480,7 +484,7 @@ class Engine:
                             else decision.get("result"),
                             continuation=continuation_for(entry),
                         )
-                    elif entry["name"] == "manage_vault_credential":
+                    elif entry["name"] in ("manage_vault_credential", "browser_request_input"):
                         # Validated server-side by the private Vault form endpoint.
                         result = {**decision["result"], "status": "completed"}
                         mode = "continue"

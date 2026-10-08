@@ -106,6 +106,7 @@ request human input and schedule routines.
 - [Framework API and configuration](docs/FRAMEWORK.md)
 - [Custom tools (`@app.tool`) and human-in-the-loop workflows](docs/APPLICATION_TOOLS.md)
 - [Native tools reference](docs/TOOLS.md)
+- [Headless browser, private input and OTP](docs/BROWSER.md)
 - [Reactive routines and webhooks](docs/REACTIVE_ROUTINES.md)
 - [Python actions and credentials](docs/ACTIONS.md)
 - [Human interaction](docs/HUMAN_INTERACTION.md)

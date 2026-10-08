@@ -1,0 +1,862 @@
+{
+  "virtual_desk": {
+    "description": "List all open tabs with IDs, URLs and state. Call it first in every session, after a reconnect, or when unsure; reuse a listed tab ID instead of opening duplicates. Cheap, call liberally.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "view_page": {
+    "description": "See what is on the page: text plus stable element refs for click/type/fill_form. Default filter 'interactive' lists actionable elements; for paragraphs or table cells call view_page(ref, filter: 'all'). Collapsed containers show as [eXX role, N items] — expand with view_page(ref: 'eXX', filter: 'all').",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "depth": {
+          "type": "number",
+          "default": 3,
+          "description": "Tree levels shown; indentation only, hidden sections need a click"
+        },
+        "ref": {
+          "type": "string",
+          "description": "Element ref for a subtree"
+        },
+        "filter": {
+          "type": "string",
+          "enum": [
+            "interactive",
+            "all",
+            "landmark",
+            "visual"
+          ],
+          "default": "interactive",
+          "description": "interactive | all | landmark | visual (bounds, click point, visibility)"
+        },
+        "max_tokens": {
+          "type": "integer",
+          "description": "Token budget; content downsampled. Omit for full output"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "click": {
+    "description": "Click an element by ref, CSS selector, visible text, or viewport x/y (canvas, pixel-precise targets). Dispatches real CDP mouse events. A click that opens a new tab is reported in the response. The DOM diff (NEW/REMOVED/CHANGED) arrives with the next page action, or here with wait_for_diff: true.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string",
+          "description": "Element ref (preferred)"
+        },
+        "selector": {
+          "type": "string",
+          "description": "CSS selector (fallback)"
+        },
+        "text": {
+          "type": "string",
+          "description": "Visible text (a11y name); no view_page needed, prefers interactive"
+        },
+        "x": {
+          "type": "number",
+          "description": "Viewport X in px; with y, not ref/selector"
+        },
+        "y": {
+          "type": "number",
+          "description": "Viewport Y in px; use with x"
+        },
+        "wait_for_diff": {
+          "type": "boolean",
+          "description": "Wait for the DOM diff before returning (default false, slower)"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "type": {
+    "description": "Type text into an input identified by ref or CSS selector. For 2+ fields use fill_form; for special keys (Enter, Escape, Tab, arrows) or shortcuts (Ctrl+K) use press_key.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string",
+          "description": "Element ref (preferred)"
+        },
+        "selector": {
+          "type": "string",
+          "description": "CSS selector (fallback)"
+        },
+        "text": {
+          "type": "string",
+          "description": "Text to type"
+        },
+        "clear": {
+          "type": "boolean",
+          "default": false,
+          "description": "Clear the field first"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "fill_form": {
+    "description": "Fill a whole form in one call: text inputs, <select> (by value or visible label), checkboxes (boolean) and radio buttons. One round-trip; partial errors do not abort and each field reports its own status. On per-field errors call view_page and retry the failing fields.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "ref": {
+                "type": "string",
+                "description": "Element ref (preferred)"
+              },
+              "selector": {
+                "type": "string",
+                "description": "CSS selector (fallback)"
+              },
+              "value": {
+                "type": [
+                  "string",
+                  "boolean",
+                  "number"
+                ],
+                "description": "string for text/select, boolean for checkbox/radio; number → string"
+              }
+            },
+            "required": [
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "description": "Each needs ref or selector plus value"
+        }
+      },
+      "required": [
+        "fields"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "press_key": {
+    "description": "Press a key or shortcut (Enter, Escape, Tab, arrows, Ctrl+K). Optionally focus an element first via ref or selector.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Key to press, e.g. 'Enter'; printable chars as-is"
+        },
+        "ref": {
+          "type": "string",
+          "description": "Element ref to focus first"
+        },
+        "selector": {
+          "type": "string",
+          "description": "CSS selector to focus first"
+        },
+        "modifiers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "ctrl",
+              "shift",
+              "alt",
+              "meta"
+            ]
+          },
+          "description": "Modifier keys held during the press"
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "scroll": {
+    "description": "Scroll the page, a container, or an element into view. Reports the position and content growth (scrollHeight delta — detects lazy-loaded content) and handles settle timing. Use container_ref/container_selector plus direction to scroll inside a container.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string",
+          "description": "Element ref to scroll into view"
+        },
+        "selector": {
+          "type": "string",
+          "description": "CSS selector to scroll into view"
+        },
+        "container_ref": {
+          "type": "string",
+          "description": "Scrollable container ref (scrolls it, not the page)"
+        },
+        "container_selector": {
+          "type": "string",
+          "description": "Scrollable container CSS selector"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "up",
+            "down"
+          ],
+          "description": "up or down (default down); used when no ref/selector"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Pixels per scroll (default 500); only with direction"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "drag": {
+    "description": "Drag a source onto a target: HTML5 drag-and-drop (draggable lists, SortableJS, React DnD) and mouse drags (sliders, canvas, resize handles). Scrolls the source into view; says when no page reaction was detected. Source: from_ref/from_selector or from_x+from_y; target: to_ref/to_selector or to_x+to_y.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "from_ref": {
+          "type": "string",
+          "description": "Source element ref"
+        },
+        "from_selector": {
+          "type": "string",
+          "description": "Source CSS selector"
+        },
+        "from_x": {
+          "type": "number",
+          "description": "Source viewport X in px (with from_y)"
+        },
+        "from_y": {
+          "type": "number",
+          "description": "Source viewport Y in px"
+        },
+        "to_ref": {
+          "type": "string",
+          "description": "Target element ref"
+        },
+        "to_selector": {
+          "type": "string",
+          "description": "Target CSS selector"
+        },
+        "to_x": {
+          "type": "number",
+          "description": "Target viewport X in px (with to_y)"
+        },
+        "to_y": {
+          "type": "number",
+          "description": "Target viewport Y in px"
+        },
+        "steps": {
+          "type": "integer",
+          "minimum": 5,
+          "default": 10,
+          "description": "Native mouseMoved events between press and release; minimum 5"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "navigate": {
+    "description": "Navigate the active tab to a URL, or action 'back' / 'reload' (all refs become stale after reload). Waits for settle. Overwrites the user's active tab — check virtual_desk first; the first call per session is redirected to virtual_desk.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "URL to open (required for goto)"
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "goto",
+            "back",
+            "reload"
+          ],
+          "default": "goto",
+          "description": "goto (default) | back | reload"
+        },
+        "settle_ms": {
+          "type": "number",
+          "description": "Extra wait in ms after load (default 500)"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "switch_tab": {
+    "description": "Open a new tab, switch to a tab by ID (from virtual_desk), or close one. Prefer 'open' over navigate when the user's active tab must stay untouched. Refs from the previous tab are invalid afterwards — call view_page before acting.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "open",
+            "switch",
+            "close"
+          ],
+          "default": "switch",
+          "description": "open | switch | close"
+        },
+        "url": {
+          "type": "string",
+          "description": "URL for a new tab (open); default about:blank"
+        },
+        "tab": {
+          "type": "string",
+          "description": "Tab ID or 1-based number (switch/close; close: active tab)"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "tab_status": {
+    "description": "Active tab's cached URL, title, ready state and errors — a cheap mid-workflow sanity check ('did my click navigate?'). Not for tab discovery or page content.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "wait_for": {
+    "description": "Wait until a condition holds: element visible, page text present, URL match, network idle, or a JS expression true. Prefer condition 'text' over a JS expression for 'has the page said X yet'. assert: true checks once and fails instead of waiting.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "condition": {
+          "type": "string",
+          "enum": [
+            "element",
+            "text",
+            "url",
+            "network_idle",
+            "js"
+          ],
+          "description": "element | text | url | network_idle | js"
+        },
+        "selector": {
+          "type": "string",
+          "description": "CSS selector or ref; required for condition 'element'"
+        },
+        "text": {
+          "type": "string",
+          "description": "Substring of document.body.innerText, case-sensitive; required for condition 'text'"
+        },
+        "url": {
+          "type": "string",
+          "description": "Substring of the page URL; required for condition 'url'"
+        },
+        "expression": {
+          "type": "string",
+          "description": "Expression that should become true; required for condition 'js'"
+        },
+        "assert": {
+          "type": "boolean",
+          "default": false,
+          "description": "Check once, fail if it does not hold; timeout 0, _meta.code 'assertion_failed'"
+        },
+        "timeout": {
+          "type": "number",
+          "description": "Max wait in ms (default 10000; 0 when assert is true)"
+        }
+      },
+      "required": [
+        "condition"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "observe": {
+    "description": "Watch an element for changes instead of polling with MutationObserver/setInterval code in evaluate. collect: record text/attribute changes for 'duration' ms. until: wait for a condition, then optionally click at once (then_click). click_first fires the triggering action after the observer is armed, so nothing is missed.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "selector": {
+          "type": "string",
+          "description": "CSS selector or ref of the element to observe"
+        },
+        "duration": {
+          "type": "number",
+          "description": "Collect window in ms (default 5000); exclusive with until"
+        },
+        "until": {
+          "type": "string",
+          "description": "JS expression checked on each change, 'el' is the element, e.g. el.textContent === '8'"
+        },
+        "then_click": {
+          "type": "string",
+          "description": "Selector or ref to click immediately when until holds"
+        },
+        "click_first": {
+          "type": "string",
+          "description": "Selector or ref to click once the observer is armed"
+        },
+        "collect": {
+          "type": "string",
+          "enum": [
+            "text",
+            "attributes",
+            "all"
+          ],
+          "default": "text",
+          "description": "text (textContent) | attributes | all"
+        },
+        "interval": {
+          "type": "number",
+          "default": 100,
+          "description": "Polling fallback interval in ms"
+        },
+        "timeout": {
+          "type": "number",
+          "default": 10000,
+          "description": "Max observation time in ms (max 25000)"
+        }
+      },
+      "required": [
+        "selector"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "capture_image": {
+    "description": "Pixel-level screenshot (WebP, max 800px, <100KB). Only for canvas or chart content without DOM text, pixel-level rendering or animation checks, or when the user explicitly asks for a screenshot. Returns no refs and reads no text — that is view_page.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "full_page": {
+          "type": "boolean",
+          "default": false,
+          "description": "Capture the full scrollable page, not just the viewport"
+        },
+        "som": {
+          "type": "boolean",
+          "default": false,
+          "description": "Overlay numbered labels matching view_page refs (Set-of-Mark)"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "dom_snapshot": {
+    "description": "Structured layout data: bounding boxes, computed styles, paint order, colors; refs match view_page. Only for spatial questions view_page cannot answer (is A above B? what color?).",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string",
+          "description": "Element ref for a subtree snapshot"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "handle_dialog": {
+    "description": "Configure handling of alerts, confirms and prompts. Set it BEFORE triggering the action that opens the dialog. Uses CDP Page.javascriptDialogOpening, so it works even while the dialog blocks all JS.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "accept",
+            "dismiss",
+            "get_status"
+          ],
+          "description": "accept or dismiss the next dialog; get_status: pending ones"
+        },
+        "text": {
+          "type": "string",
+          "description": "Text entered into prompt dialogs (with action accept)"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "file_upload": {
+    "description": "Upload file(s) to an <input type='file'> identified by ref or CSS selector; file paths must be absolute.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string",
+          "description": "Element ref of the file input"
+        },
+        "selector": {
+          "type": "string",
+          "description": "CSS selector of the file input; needed for hidden inputs (display:none, off-screen), which have no ref"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            }
+          ],
+          "description": "Absolute path(s) of the file(s) to upload"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "console_logs": {
+    "description": "Read collected browser console logs; filter by level (info/warning/error/debug) and/or regex; optionally clear the buffer after reading.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [
+            "info",
+            "warning",
+            "error",
+            "debug"
+          ],
+          "description": "Filter by log level"
+        },
+        "pattern": {
+          "type": "string",
+          "description": "Regex matched against log text"
+        },
+        "clear": {
+          "type": "boolean",
+          "default": false,
+          "description": "Clear the buffer after reading"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "network_monitor": {
+    "description": "Capture network requests via CDP, including those the page issues itself. Workflow: start → trigger the action → get(pattern: 'api').",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "start",
+            "get",
+            "stop"
+          ],
+          "description": "start recording | get results | stop: return and clear"
+        },
+        "filter": {
+          "type": "string",
+          "enum": [
+            "failed"
+          ],
+          "description": "'failed': only HTTP >= 400 or network errors"
+        },
+        "pattern": {
+          "type": "string",
+          "description": "Regex for request URLs"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "download": {
+    "description": "Wait for pending downloads or list this session's downloaded files. Downloads start by themselves when you click a download link or open a file URL (PDF, CSV, …); this tool never triggers them. download() waits for a pending download to finish; download({ action: 'list' }) returns at once.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "status",
+            "list"
+          ],
+          "default": "status",
+          "description": "status waits for pending downloads; list: history, never waits (use for polling)"
+        },
+        "timeout": {
+          "type": "number",
+          "default": 30000,
+          "description": "Max wait in ms for pending downloads"
+        },
+        "settle": {
+          "type": "number",
+          "default": 250,
+          "description": "Ms to wait for a download to START before reporting none — Chrome fires downloadWillBegin a few ms after the click; 0 = instant"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "run_plan": {
+    "description": "Batch the next 2+ known actions (click, type, scroll, view_page chains) here instead of N separate calls: a sequence of tool steps, executed server-side in one call. Variables via vars and saveAs ($name), conditions (if), suspend/resume to ask the agent mid-plan, and errorStrategy abort | continue | capture_image.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tool": {
+                "type": "string",
+                "description": "Tool name"
+              },
+              "params": {
+                "type": "object",
+                "additionalProperties": {},
+                "description": "Tool parameters; $name substitutes a variable"
+              },
+              "saveAs": {
+                "type": "string",
+                "description": "Save the result as $name for later steps"
+              },
+              "if": {
+                "type": "string",
+                "description": "Run the step only if this expression is true, e.g. \"$pageTitle === 'Login'\""
+              },
+              "suspend": {
+                "type": "object",
+                "properties": {
+                  "question": {
+                    "type": "string",
+                    "description": "Question for the agent"
+                  },
+                  "context": {
+                    "type": "string",
+                    "enum": [
+                      "capture_image"
+                    ],
+                    "description": "capture_image: attach a screenshot"
+                  },
+                  "condition": {
+                    "type": "string",
+                    "description": "Suspend after the step if this $-expression is true"
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Pause here to ask the agent a question"
+              }
+            },
+            "required": [
+              "tool"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Tool steps to run in order"
+        },
+        "vars": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Initial variables, available as $name"
+        },
+        "errorStrategy": {
+          "type": "string",
+          "enum": [
+            "abort",
+            "continue",
+            "capture_image"
+          ],
+          "default": "abort",
+          "description": "abort stops at the first error; continue runs all steps; capture_image screenshots, then aborts"
+        },
+        "resume": {
+          "type": "object",
+          "properties": {
+            "planId": {
+              "type": "string",
+              "description": "ID of the suspended plan"
+            },
+            "answer": {
+              "type": "string",
+              "description": "Answer to the suspend question"
+            }
+          },
+          "required": [
+            "planId",
+            "answer"
+          ],
+          "additionalProperties": false,
+          "description": "Resume a suspended plan"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "batch_evaluate": {
+    "description": "Visit several URLs in sequence and run the same JS expression on each. For controlled checks across known pages where view_page/run_plan would be too chatty; not for normal reading, clicking or form work.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "urls": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "URLs to visit in order"
+        },
+        "evaluate_per_page": {
+          "type": "string",
+          "description": "JS expression evaluated on each page"
+        },
+        "settle_ms": {
+          "type": "number",
+          "default": 2000,
+          "description": "Wait in ms after each page load before evaluating"
+        },
+        "timeout_per_page_ms": {
+          "type": "number",
+          "default": 30000,
+          "description": "Timeout per page in ms (navigate+settle+evaluate)"
+        },
+        "continue_on_error": {
+          "type": "boolean",
+          "default": true,
+          "description": "Continue with the remaining URLs if one fails"
+        }
+      },
+      "required": [
+        "urls",
+        "evaluate_per_page"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "set_page_data": {
+    "description": "Write a payload larger than 1 MB into window.__pb_data[key], chunked past the CDP 1 MB message limit. Source: inline (`data`) or file (absolute `path`, read as binary). The page reads window.__pb_data[key] (string or ArrayBuffer per encoding) and window.__pb_data[key + '__complete'] === true. Never write one key from parallel calls — they race. Under ~200 KB use evaluate; for a real <input type=file> use file_upload.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+          "description": "Property name under window.__pb_data (JS identifier, see pattern)"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "inline"
+                },
+                "data": {
+                  "type": "string",
+                  "description": "Payload string (base64 or utf-8)"
+                }
+              },
+              "required": [
+                "type",
+                "data"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "file"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "Absolute file path"
+                }
+              },
+              "required": [
+                "type",
+                "path"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "description": "inline: pass data. file: pass an absolute path, read as binary"
+        },
+        "encoding": {
+          "type": "string",
+          "enum": [
+            "base64",
+            "utf8",
+            "binary"
+          ],
+          "description": "utf8 (inline default) keeps a string; binary (file default) gives an ArrayBuffer for FileReader/Blob/fetch; base64 keeps the base64 string"
+        },
+        "chunkSize": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "description": "Raw bytes per chunk before base64 (default 500000; max 700000)"
+        }
+      },
+      "required": [
+        "key",
+        "source"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "evaluate": {
+    "description": "Run JavaScript in the page. Good uses: computation, style mutations (.style.X = ..., classList), shadow-root traversal, in-page fetch(), app-specific side effects no dedicated tool covers. Scope is shared between calls; top-level const/let/class are wrapped in an IIFE. If/else blocks may return undefined — use a ternary or an explicit return.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "expression": {
+          "type": "string",
+          "description": "JavaScript code to execute in the page context"
+        },
+        "await_promise": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to await Promise results"
+        }
+      },
+      "required": [
+        "expression"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  }
+}

@@ -10,6 +10,8 @@ test("approval keys are scoped to dedicated and legacy approval routes", () => {
     "/approvals/j/r/decision",
     "/jobs/j/decisions/c",
     "/jobs/j/vault/r",
+    "/jobs/j/private-input/r",
+    "/approvals/j/r/private-input",
   ]) {
     assert.equal(isApprovalPath(path), true, path);
   }

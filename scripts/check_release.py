@@ -56,6 +56,13 @@ def main():
             check_names(names)
             assert "fluxyr/static/index.html" in names
             assert "fluxyr/prompts/vault.md" in names
+            for asset in (
+                "driver.mjs",
+                "package.json",
+                "pnpm-lock.yaml",
+                "tool-schemas.json",
+            ):
+                assert f"fluxyr/browser_runtime/{asset}" in names
             assert any(
                 n.startswith("fluxyr/static/assets/") and n.endswith(".js")
                 for n in names

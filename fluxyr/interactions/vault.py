@@ -172,7 +172,7 @@ def save_credential(engine, job_id, request_id, body):
                 item = engine.vault._update(session, existing.id, name, content)
         except (ValueError, KeyError, TypeError):
             raise ValueError(
-                "Could not save credential. Check its name, required fields and certificate format/password; create requires a unique name."
+                "Could not save credential. Check its name, required fields and credential format/settings; create requires a unique name."
             ) from None
         safe_result = {
             "action": payload["action"],

@@ -24,7 +24,9 @@ Never replace an already published version; issue a new version for changes.
 
 The Release workflow checks the tag/version and main ancestry, runs CI plus the full PostgreSQL/Linux integration suite,
 then publishes a GitHub release with the tested wheel, sdist and SHA256SUMS.
-Consumers of the wheel do not need Node. Installing from a Git checkout requires
+The integration gate also builds the optional browser Docker target and tests
+private input and TOTP using Chromium against local fixtures. Consumers of the
+wheel do not need Node unless enabling the optional browser. Installing from a Git checkout requires
 building the UI first; use the released wheel for a minimal consumer application.
 
 For a failed publication, retry the workflow run. To dispatch against an existing

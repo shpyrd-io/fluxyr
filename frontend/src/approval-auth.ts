@@ -10,7 +10,9 @@ export type ApprovalKeyRequest = {
 export function isApprovalPath(path: string) {
   return (
     /^\/approvals(?:\/|\?|$)/.test(path) ||
-    /^\/jobs\/[^/]+\/(decisions|vault)\/[^/?]+(?:\?.*)?$/.test(path)
+    /^\/jobs\/[^/]+\/(decisions|vault|private-input)\/[^/?]+(?:\?.*)?$/.test(
+      path,
+    )
   );
 }
 export function approvalKey() {

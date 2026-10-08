@@ -376,10 +376,10 @@ class Store:
                 raise ValueError(
                     "Human request is no longer current; reload the execution"
                 )
-            if entry.get("name") == "manage_vault_credential":
+            if entry.get("name") in ("manage_vault_credential", "browser_request_input"):
                 if value.get("decision") != "reject":
                     raise ValueError(
-                        "Save this credential through the embedded Vault form"
+                        "Use the embedded private form to complete this request"
                     )
                 # Never allow free-text/secret input into this specialized decision.
                 value = {"decision": "reject"}

@@ -1,6 +1,6 @@
 # Native tools
 
-Fluxyr ships with **45 built-in tools** across the agent and the isolated skill
+Fluxyr ships with **45 built-in tools** and **3 optional browser tools** across the agent and the isolated skill
 builder. They cover research, files, skills, credentials, human interaction,
 routines, execution inspection and memory. This reference follows the current source.
 
@@ -196,3 +196,13 @@ are available to the agent; technical normalizers themselves are never model too
 | `test_routine_normalizer` | `routine_id`, `receipt_id`, `version_id` | Dry-run against a collected sample, without dispatch. |
 | `configure_reactive_routine` | `routine_id`, `mode?`, `normalizer_id?` | Configure collection/activation/disable; active requires tested version. |
 | `replay_routine_receipt` | `routine_id`, `receipt_id` | Explicit replay using active version; can cause real agent actions. |
+
+## Optional headless browser
+
+Enabled with `FLUXYR_BROWSER_ENABLED=true`; see [installation and private input](BROWSER.md).
+
+| Tool | Context | Parameters | Purpose |
+| --- | --- | --- | --- |
+| `browser` | Both | `tool`, `arguments_json?` | Call public-browser locally; `help` lists supported operations and `help` with `{"tool":"navigate"}` returns that operation's schema. `capture_image` returns a file for `read` or `render_preview`; `close` releases Chrome. Use `type` only for public text. |
+| `browser_fill_private` | Both | `origin`, `ref` or `selector`, `vault_item_id`, `field?`, `submit?` | Resolve a Vault value and fill the exact field through private pipes. TOTP items generate a fresh code just before filling. Returns outcome only. |
+| `browser_request_input` | Both | `origin`, `ref` or `selector`, `title?`, `vault_item_id?`, `field?`, `submit?` | Pause for private human input, or explicit consent to use a specified Vault item. The card is also surfaced in the caller's conversation when a builder requests it. |

@@ -42,10 +42,16 @@ const toolGroups: Record<string, string[]> = {
     "finish_execution",
     "ask_human",
   ],
+  Browser: ["browser", "browser_fill_private", "browser_request_input"],
   Vault: ["vault_list", "check_vault_credential", "manage_vault_credential"],
   Agent: ["list_tools"],
 };
 const toolSummaries: Record<string, string> = {
+  browser: "Inspect and control headless Chrome, including page captures.",
+  browser_fill_private:
+    "Fill a browser field directly from Vault, including fresh OTP codes.",
+  browser_request_input:
+    "Request private input or Vault permission in the conversation.",
   list_tools: "List the agent’s available tools and their parameters.",
   web_browse: "Read a web page as Markdown.",
   web_extract: "Read a specific part of a web page using a CSS selector.",

@@ -91,7 +91,7 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
         approval_route = (
             request.path == "/api/approvals"
             or request.path.startswith("/api/approvals/")
-            or request.endpoint in {"fluxyr.decision", "fluxyr.vault_decision"}
+            or request.endpoint in {"fluxyr.decision", "fluxyr.vault_decision", "fluxyr.browser_private_input"}
         )
         if settings.approvals_api_key and approval_route:
             scheme, _, token = request.headers.get("Authorization", "").partition(" ")
@@ -415,6 +415,13 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
         from .interactions.vault import save_credential
 
         return jsonify(save_credential(engine, jid, request_id, request.json))
+
+    @routes.post("/api/approvals/<jid>/<request_id>/private-input")
+    @routes.post("/api/jobs/<jid>/private-input/<request_id>")
+    def browser_private_input(jid, request_id):
+        from .interactions.browser import submit_input
+
+        return jsonify(submit_input(engine, jid, request_id, request.json))
 
     @routes.get("/api/events")
     def events():

@@ -16,3 +16,10 @@ export function filePreviewKind(path: string): "pdf" | "image" | "frame" {
 export function filePreviewUrl(path: string) {
   return "/preview/" + path.split("/").map(encodeURIComponent).join("/");
 }
+
+// Markdown image paths refer to the Files directory, not frontend routes.
+// Preserve URL encoding: Markdown has already converted the destination to a URL.
+export function markdownImageUrl(url: string) {
+  if (!url || /^(?:[a-z][\w+.-]*:|\/|#)/i.test(url)) return url;
+  return "/preview/" + url.replace(/^(?:\.\/)+/, "");
+}

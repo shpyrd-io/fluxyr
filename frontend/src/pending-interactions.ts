@@ -27,7 +27,10 @@ export function pendingInteractions(
         (p: RecordData) =>
           p._status === "parked" &&
           !p._decision &&
-          (job.session_id === session || p.name === "manage_vault_credential"),
+          (job.session_id === session ||
+            ["manage_vault_credential", "browser_request_input"].includes(
+              p.name,
+            )),
       ),
     }))
     .filter((group) => group.pending.length);

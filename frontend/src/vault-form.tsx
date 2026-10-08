@@ -7,6 +7,7 @@ import { SelectField, SelectOption } from "./form-select";
 import { oauthPrefill } from "./vault-prefill";
 
 export const vaultKinds: Record<string, string> = {
+  totp: "Authenticator (TOTP)",
   text: "Secret text",
   key_password: "Key and password",
   access_token: "Access token",
@@ -22,6 +23,19 @@ type Field = {
   accept?: string;
 };
 const vaultFields: Record<string, Field[]> = {
+  totp: [
+    {
+      key: "secret",
+      label: "Base32 secret or otpauth:// URI",
+      type: "password",
+      required: true,
+    },
+    { key: "issuer", label: "Issuer (optional)" },
+    { key: "account", label: "Account (optional)" },
+    { key: "algorithm", label: "Algorithm (default SHA1)" },
+    { key: "digits", label: "Digits (6 or 8; default 6)", type: "number" },
+    { key: "period", label: "Period in seconds (default 30)", type: "number" },
+  ],
   text: [
     { key: "value", label: "Secret value", type: "password", required: true },
   ],

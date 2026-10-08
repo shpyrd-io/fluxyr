@@ -11,3 +11,6 @@ include CONTRIBUTING.md
 recursive-include scripts *.py
 
 include CHANGELOG.md
+
+recursive-include fluxyr/browser_runtime *.mjs *.json *.yaml *.txt *.sh
+prune fluxyr/browser_runtime/node_modules

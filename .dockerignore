@@ -6,7 +6,7 @@ data
 workspace
 **/__pycache__
 .pytest_cache
-frontend/node_modules
+**/node_modules
 fluxyr/static
 *.egg-info
 .pnpm-store

@@ -26,6 +26,7 @@ TYPES = (
     "access_token",
     "certificate_pem",
     "certificate_pfx",
+    "totp",
 )
 
 
@@ -174,7 +175,14 @@ class Vault:
             or not isinstance(content, dict)
         ):
             raise ValueError("Invalid vault item")
+        if kind == "totp":
+            from .otp import configuration
+
+            normalized = configuration(content)
+            content.clear()
+            content.update(normalized)
         required = {
+            "totp": ("secret",),
             "text": ("value",),
             "key_password": ("key", "password"),
             "access_token": ("access_token",),

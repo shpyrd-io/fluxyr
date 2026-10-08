@@ -2,7 +2,8 @@
 
 A consumer application uses the same engine as the bundled workbench. Install a
 built wheel in the application's own virtualenv; no Node installation is required
-when consuming the package.
+when consuming the package. The optional [headless browser](BROWSER.md) requires
+Node and Chrome/Chromium.
 
 ```sh
 python3 -m venv .venv
@@ -60,6 +61,7 @@ credentials used by actions.
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY` | Key for the selected provider required when starting workers |
 | `FLUXYR_ROOT` | Current working directory. Optional override for `data`, `workspace`, `.runtime` (e.g. a Docker volume) |
 | `FLUXYR_SKILLS_DIR` | Empty disables file skills; otherwise path relative to `FLUXYR_ROOT`, or absolute |
+| `FLUXYR_BROWSER_ENABLED` | `false`; enable optional [browser tools and private Vault/OTP input](BROWSER.md) |
 | `FLUXYR_HOST` | `127.0.0.1` |
 | `PORT` | `5050`; an explicit `app.run(port=...)` wins |
 | `FLUXYR_WORKERS`, `FLUXYR_TOOL_WORKERS` | `4`, `6`; each 1–32 |

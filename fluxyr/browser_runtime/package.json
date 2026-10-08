@@ -1,0 +1,6 @@
+{
+  "name": "fluxyr-browser-runtime",
+  "private": true,
+  "type": "module",
+  "dependencies": {"public-browser": "3.0.0"}
+}
