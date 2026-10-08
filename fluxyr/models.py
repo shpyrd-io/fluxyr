@@ -54,6 +54,10 @@ class Message(Base):
 
 class Job(Base):
     __tablename__ = "jobs"
+    __table_args__ = (
+        Index("ix_jobs_routine_status_owner", "routine_id", "status", "owner"),
+        Index("ix_jobs_session_status_created", "session_id", "status", "created_at"),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id"), index=True)
     routine_id: Mapped[str | None] = mapped_column(String(36), index=True)
@@ -179,6 +183,7 @@ class Routine(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     next_run: Mapped[float | None] = mapped_column(Float, index=True)
     overlap: Mapped[str] = mapped_column(String(16), default="queue")
+    max_concurrency: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     created_at: Mapped[float] = mapped_column(Float, default=time.time)
 
 

@@ -24,7 +24,7 @@ jobs:
             --entrypoint sh fluxyr-browser-test -c '
               python -m pip install --quiet --target /tmp/browser-tests "pytest>=7.4,<9" &&
               PYTHONPATH=/tmp/browser-tests:/checks/tests python -m pytest -q -m integration \
-                -o cache_dir=/tmp/pytest-cache -o markers=integration /checks/tests/test_browser_chrome.py /checks/tests/test_passkeys.py
+                -o cache_dir=/tmp/pytest-cache -o markers=integration /checks/tests/test_browser_chrome.py /checks/tests/test_passkeys.py /checks/tests/test_routine_concurrency.py
             '
   integration:
     name: Python ${{ matrix.python }} · PostgreSQL · full suite

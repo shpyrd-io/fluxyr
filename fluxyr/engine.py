@@ -28,6 +28,7 @@ from .runtime.effects import Effects
 from .runtime.human_protocol import response_for
 from .runtime.interruptible import InterruptibleAdapter, ThreadGroup
 from .runtime.python_runner import PythonRunner
+from .runtime.tmp_cleanup import TmpMaintenance
 from .runtime.worker_monitor import WorkerMonitor
 from .skills import Skills
 from .store import Store
@@ -58,6 +59,7 @@ class Engine:
         self.files = Files(settings.data)
         self.workspace_tools = WorkspaceTools(settings)
         self.runner = PythonRunner(settings, self.vault)
+        self.tmp_maintenance = TmpMaintenance(settings)
         self.skills = Skills(self.db, self.runner, file_skills)
         self.native_tools = {}
         self.app = None
@@ -152,6 +154,7 @@ class Engine:
         self.reactive.future = None
         self.reactive.start()
         self.memory_queue.start()
+        self.tmp_maintenance.start(self.stopping)
         self.thread = threading.Thread(
             target=self._supervise, name="agent-supervisor", daemon=True
         )
@@ -182,6 +185,7 @@ class Engine:
         if self.thread:
             self.thread.join()
         self.reactive.stop()
+        self.tmp_maintenance.join()
         if self.pool:
             self.pool.shutdown(wait=True, cancel_futures=True)
         if self.memory_queue.thread:

@@ -309,4 +309,4 @@ def test_schema_one_migration_preserves_skills(make_app):
     restored = e.skills.get(skill["id"])
     assert restored["name"] == skill["name"] and restored["spec"] == ""
     with e.db.transaction() as s:
-        assert s.scalar(select(Version.id)) == 5
+        assert s.scalar(select(Version.id)) == 6

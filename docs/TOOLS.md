@@ -129,8 +129,8 @@ model-facing tools. See [human interaction](HUMAN_INTERACTION.md).
 | Tool | Context | Parameters | Purpose |
 | --- | --- | --- | --- |
 | `list_routines` | Agent | None | List saved routines and their schedules. |
-| `create_routine` | Agent | `name`, `prompt`, `trigger?`, `cron?`, `timezone?`, `enabled?`, `overlap?` | Save a manual, scheduled or reactive routine using available actions. Cron uses five fields; timezone defaults to UTC and overlap policy to `queue` (or `skip`). |
-| `update_routine` | Agent | `routine_id`, `values` | Update any of `name`, `prompt`, `cron`, `timezone`, `enabled` and `overlap`, including disabling a schedule. |
+| `create_routine` | Agent | `name`, `prompt`, `trigger?`, `cron?`, `timezone?`, `enabled?`, `overlap?`, `max_concurrency?` | Save a manual, scheduled or reactive routine. `queue` (default) serializes runs; `skip` skips scheduled occurrences while busy; `parallel` permits up to `max_concurrency` (integer 1–32, default 1) and queues excess runs. Global worker capacity and session ordering still apply. |
+| `update_routine` | Agent | `routine_id`, `values` | Update routine fields including `overlap` and `max_concurrency`. Lowering concurrency leaves running work intact and restricts subsequent starts. |
 | `run_routine` | Agent | `routine_id` | Enqueue a manual run in its own conversation, linked to the calling execution. |
 | `list_executions` | Agent | `limit?`, `before?` | List recent execution IDs and concise status. Limit is 1–50; use returned `next_before` to page backward. |
 | `inspect_execution` | Both | `job_id`, `before_event_id?`, `limit?`, `include_logs?` | Read significant events, errors and messages without individual stream fragments. Limit is 1–30; page older events with returned `next_before_event_id`. |

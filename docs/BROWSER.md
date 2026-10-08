@@ -72,6 +72,23 @@ items can use `key_password` (username in `key`, password in `password`) or `tex
 TOTP uses the host's clock, which must be synchronized. HOTP counters are not
 supported; SMS/email codes use private human input instead.
 
+## Temporary browser files
+
+New screenshots and download directories live in `data/tmp/browser`, shown as
+`tmp/browser` in Files. Screenshot names encode the full UUID in 22 base62
+characters, followed by `.png`, `.webp` or `.jpg`; downloaded files retain their
+original names inside a per-browser directory. Preview URLs continue to use
+`/preview/tmp/browser/...`.
+
+The embedded worker scans `data/tmp` at most once every 24 hours and removes
+regular files whose last modification was more than 30 days ago, plus old empty
+directories. It runs separately from execution dispatch, records its last run
+under `.runtime`, and sleeps between runs. It does not follow symlinks or clean
+the operating system's `/tmp`. Copy artifacts outside `data/tmp` to retain them
+longer; their old temporary preview links expire when the files are removed.
+Existing artifacts under `data/browser` keep their paths and are not included in
+this cleanup.
+
 ## Agent tools
 
 - `browser(tool="help")` lists supported browser operations. For the exact schema,
@@ -80,7 +97,7 @@ supported; SMS/email codes use private human input instead.
   opens a page. `view_page` returns text and element refs, and `capture_image`
   returns a file path. The agent can use `read` to inspect the image or
   `render_preview` to display it in the conversation. To embed it in Markdown,
-  use the returned `url`, for example `![Page capture](/preview/browser/example.webp)`.
+  use the returned `url`, for example `![Page capture](/preview/tmp/browser/example.webp)`.
   PNG, JPEG and WebP are supported; relative Files paths in Markdown images also
   resolve through `/preview/`.
 - `browser_fill_private(origin="https://portal.example.com", ref="e12",

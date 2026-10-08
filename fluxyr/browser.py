@@ -25,6 +25,17 @@ class BrowserRejected(BrowserError):
     """A completed protocol exchange rejected a stale/invalid browser operation."""
 
 
+def artifact_id():
+    """Keep all UUID bits in a 22-character, filename-safe base62 name."""
+    alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+    value = uuid.uuid4().int
+    chars = []
+    while value:
+        value, remainder = divmod(value, 62)
+        chars.append(alphabet[remainder])
+    return "".join(reversed(chars)).rjust(22, "0")
+
+
 class Driver:
     def __init__(self, runtime, profile, downloads):
         node = os.getenv("FLUXYR_BROWSER_NODE") or shutil.which("node")
@@ -223,7 +234,7 @@ class Browsers:
                         prefix="fluxyr-browser-", dir=self.engine.settings.runtime
                     )
                 )
-                downloads = self.engine.settings.data / "browser" / str(uuid.uuid4())
+                downloads = self.engine.files.path("tmp/browser/" + artifact_id())
                 downloads.mkdir(parents=True, exist_ok=True)
                 try:
                     driver = Driver(self.runtime, directory / "profile", downloads)
@@ -303,9 +314,10 @@ class Browsers:
                 suffix = {"image/png": ".png", "image/webp": ".webp"}.get(
                     block.get("mimeType"), ".jpg"
                 )
-                path = self.engine.files.path("browser/" + uuid.uuid4().hex + suffix)
+                path = self.engine.files.path("tmp/browser/" + artifact_id() + suffix)
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(base64.b64decode(block["data"], validate=True))
+                with path.open("xb") as image:
+                    image.write(base64.b64decode(block["data"], validate=True))
                 content.append(
                     {
                         "type": "image_file",

@@ -119,9 +119,14 @@ Inspection is paginated to avoid placing the entire inbox in model context.
 
 Each accepted event produces a job in the session identified by
 `(routine_id, session_key)`. Jobs in one session run sequentially and share
-context; a pending human decision holds later jobs. Other sessions can execute
-concurrently within the engine's worker limit. Each job completes independently;
-no worker stays occupied waiting for the next webhook.
+context; a pending human decision holds later jobs in that session while releasing
+its processing slot. Use `overlap: "parallel", max_concurrency: 3` on the routine
+to process up to three sessions concurrently, within the global `FLUXYR_WORKERS`
+limit. Excess jobs queue; the default `queue` policy processes one job at a time
+across the routine. A human response queues the suspended job for capacity again,
+ahead of later messages in its session. Each job completes independently; no
+worker stays occupied waiting for the next webhook. Accepted webhook messages are
+never discarded by the cron-only `skip` policy.
 
 Receipts show `collected`, `pending`, `processing`, `ignored`, `routed` or `failed`.
 `routed` means jobs were queued; inspect linked execution statuses for their

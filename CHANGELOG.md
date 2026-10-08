@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Store new browser captures and downloads under `data/tmp/browser`, using full UUIDs encoded as 22-character base62 capture names. The embedded worker removes files older than 30 days from `data/tmp` once daily, outside the execution queue.
+
+- Add bounded parallel routine execution with queued overflow, per-session ordering, human-wait slot release, and the existing global worker cap. Enforce queue mode when workers claim jobs.
+- Add concurrency controls to routine forms and native tools. Migrate database schema to version 6 with a default per-routine concurrency of 1; older engines cannot open the upgraded database.
+
 ## 0.9.4 — 2026-10-08
 
 - Register passkeys inside Fluxyr's browser with human confirmation and direct encrypted Vault storage; restore them for later WebAuthn sign-in without exposing private keys to the model.

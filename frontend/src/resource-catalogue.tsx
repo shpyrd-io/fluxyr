@@ -46,6 +46,7 @@ const defaults: Record<string, RecordData> = {
     timezone: "UTC",
     enabled: false,
     overlap: "queue",
+    max_concurrency: 1,
   },
   Vault: { name: "", kind: "text", content: {} },
 };
@@ -123,6 +124,7 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                 : true
               : values.enabled,
           overlap: values.overlap,
+          max_concurrency: values.max_concurrency,
         };
       await api(
         path + (selected ? "/" + selected.id : ""),
@@ -376,6 +378,14 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                   ) : page === "Routines" ? (
                     <>
                       <p>{item.prompt}</p>
+                      <p className="muted">
+                        {item.overlap === "parallel"
+                          ? `Up to ${item.max_concurrency} simultaneous executions; excess runs queue.`
+                          : item.overlap === "skip" &&
+                              item.trigger === "scheduled"
+                            ? "Skip scheduled occurrences while busy."
+                            : "One execution at a time; excess runs queue."}
+                      </p>
                       {item.trigger === "reactive" ? (
                         <ReactiveRoutine
                           key={item.id}
@@ -405,14 +415,6 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                                   : "Not scheduled"}
                               </dd>
                             </div>
-                            <div>
-                              <dt>Overlapping runs</dt>
-                              <dd>
-                                {item.overlap === "queue"
-                                  ? "Queue the next execution"
-                                  : "Skip while running"}
-                              </dd>
-                            </div>
                           </dl>
                           <Button
                             disabled={busy || (!item.cron && !item.enabled)}
@@ -440,8 +442,12 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                       </p>
                       {item.type === "passkey" && (
                         <p>
-                          {item.passkey_config?.origin} · {item.passkey_config?.state === "saved" ? "Saved in Vault" : "Enrollment incomplete"}.
-                          {" "}Used directly by the browser authenticator. Removing it here does not revoke it on the website.
+                          {item.passkey_config?.origin} ·{" "}
+                          {item.passkey_config?.state === "saved"
+                            ? "Saved in Vault"
+                            : "Enrollment incomplete"}
+                          . Used directly by the browser authenticator. Removing
+                          it here does not revoke it on the website.
                         </p>
                       )}
                       {item.type === "oauth2" &&
@@ -512,7 +518,9 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
             </DialogTitle>
             <DialogDescription>
               {page === "Vault" && selected
-                ? selected.type === "passkey" ? "Rename this browser-managed passkey. Its private key cannot be viewed or replaced." : "Leave fields blank to keep saved values. Upload a file to replace a certificate."
+                ? selected.type === "passkey"
+                  ? "Rename this browser-managed passkey. Its private key cannot be viewed or replaced."
+                  : "Leave fields blank to keep saved values. Upload a file to replace a certificate."
                 : page === "Skills"
                   ? "Define what the skill does. Build its Python actions after saving."
                   : page === "Routines"
@@ -629,20 +637,6 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                           onTimezone={(timezone) => set("timezone", timezone)}
                           onValidity={setScheduleValid}
                         />
-                        <Label>
-                          When another execution is running
-                          <SelectField
-                            value={values.overlap}
-                            onValueChange={(value) => set("overlap", value)}
-                          >
-                            <SelectOption value="queue">
-                              Queue the next execution
-                            </SelectOption>
-                            <SelectOption value="skip">
-                              Skip this occurrence
-                            </SelectOption>
-                          </SelectField>
-                        </Label>
                         <Label className="check-field">
                           <Switch
                             type="button"
@@ -656,6 +650,64 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                         </Label>
                       </>
                     ) : null}
+                    <Label>
+                      When another execution is running
+                      <SelectField
+                        aria-label="When another execution is running"
+                        value={values.overlap}
+                        onValueChange={(value) => {
+                          set("overlap", value);
+                          if (
+                            value === "parallel" &&
+                            values.max_concurrency <= 1
+                          )
+                            set("max_concurrency", 2);
+                        }}
+                      >
+                        <SelectOption value="queue">
+                          Queue the next execution
+                        </SelectOption>
+                        {(values.trigger === "scheduled" ||
+                          values.overlap === "skip") && (
+                          <SelectOption value="skip">
+                            Skip scheduled occurrences
+                          </SelectOption>
+                        )}
+                        <SelectOption value="parallel">
+                          Run simultaneously
+                        </SelectOption>
+                      </SelectField>
+                    </Label>
+                    {values.overlap === "parallel" && (
+                      <Label>
+                        Maximum simultaneous executions
+                        <Input
+                          aria-label="Maximum simultaneous executions"
+                          type="number"
+                          min={1}
+                          max={32}
+                          step={1}
+                          required
+                          value={values.max_concurrency ?? 1}
+                          onChange={(e) =>
+                            set(
+                              "max_concurrency",
+                              e.target.value === ""
+                                ? ""
+                                : Number(e.target.value),
+                            )
+                          }
+                        />
+                      </Label>
+                    )}
+                    <p className="muted">
+                      {values.overlap === "skip"
+                        ? "Only scheduled occurrences are skipped. Manual runs and webhook messages remain queued. "
+                        : "Excess runs wait for a free slot. "}
+                      The agent-wide worker limit also applies. Waiting for a
+                      human response releases a slot; messages in the same
+                      session stay in order.
+                    </p>
                   </>
                 ) : null}
                 {error && (

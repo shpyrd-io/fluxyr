@@ -64,7 +64,7 @@ credentials used by actions.
 | `FLUXYR_BROWSER_ENABLED` | `false`; enable optional [browser tools and private Vault/OTP input](BROWSER.md) |
 | `FLUXYR_HOST` | `127.0.0.1` |
 | `PORT` | `5050`; an explicit `app.run(port=...)` wins |
-| `FLUXYR_WORKERS`, `FLUXYR_TOOL_WORKERS` | `4`, `6`; each 1–32 |
+| `FLUXYR_WORKERS`, `FLUXYR_TOOL_WORKERS` | `4`, `6`; each 1–32. `WORKERS` bounds execution workers globally; a routine's `max_concurrency` adds a per-routine limit. Human waits release execution slots. `TOOL_WORKERS` controls tool calls within a model batch. |
 | `FLUXYR_HTTP_THREADS` | `24` |
 | `FLUXYR_MAX_CONTENT_LENGTH` | `4194304` bytes |
 | `FLUXYR_LEASE_SECONDS` | `90`; minimum 30, above the supervisor heartbeat interval |
@@ -130,7 +130,14 @@ or its job is nonterminal (including paused/waiting/building). Legacy
 Symbolic links are never followed; a symlinked workspace root is not cleaned.
 Mounted subdirectories and entries that cannot be inspected are retained. Cleanup
 does not run on package import, HTTP-only initialization or each request. It leaves
-Database history, `data/` and dependency caches untouched.
+Workspace retention leaves database history, `data/` and dependency caches untouched.
+
+Separately, the embedded worker cleans `data/tmp` every 24 hours, deleting files
+with a modification time older than 30 days and old empty directories. New browser
+captures/downloads live in `data/tmp/browser`. This maintenance runs on its own
+sleeping thread, persists its last run under `.runtime`, and never follows
+symlinks or scans the operating system's `/tmp`. Other `data/` paths are persistent;
+move files out of `data/tmp` when they must be kept longer.
 
 ### Thinking and reasoning
 

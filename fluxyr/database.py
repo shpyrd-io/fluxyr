@@ -8,7 +8,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from .models import Base, Event, Session, Version
+from .models import Base, Event, Job, Session, Version
 
 MAIN_SESSION = "00000000-0000-0000-0000-000000000001"
 
@@ -72,10 +72,11 @@ class Database:
                 conn.execute(text("SELECT pg_advisory_xact_lock(70423901)"))
             Base.metadata.create_all(conn)
             # create_all does not add indexes to existing tables.
-            for index in Event.__table__.indexes:
-                index.create(conn, checkfirst=True)
+            for model in (Event, Job):
+                for index in model.__table__.indexes:
+                    index.create(conn, checkfirst=True)
             version = conn.scalar(select(Version.id))
-            if version not in (None, 1, 2, 3, 4, 5):
+            if version not in (None, 1, 2, 3, 4, 5, 6):
                 raise RuntimeError("Unsupported database schema version")
             if "spec" not in {c["name"] for c in inspect(conn).get_columns("skills")}:
                 conn.execute(
@@ -112,10 +113,18 @@ class Database:
                         "UPDATE routines SET trigger = 'scheduled' WHERE cron IS NOT NULL AND cron <> ''"
                     )
                 )
+            if "max_concurrency" not in {
+                c["name"] for c in inspect(conn).get_columns("routines")
+            }:
+                conn.execute(
+                    text(
+                        "ALTER TABLE routines ADD COLUMN max_concurrency INTEGER NOT NULL DEFAULT 1"
+                    )
+                )
             if version is None:
-                conn.execute(insert(Version).values(id=5))
-            elif version != 5:
-                conn.execute(update(Version).where(Version.id == version).values(id=5))
+                conn.execute(insert(Version).values(id=6))
+            elif version != 6:
+                conn.execute(update(Version).where(Version.id == version).values(id=6))
         with self.transaction() as db:
             if not db.get(Session, MAIN_SESSION):
                 db.add(Session(id=MAIN_SESSION, title="Workbench", kind="main"))

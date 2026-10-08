@@ -3,11 +3,22 @@
 import copy
 import time
 
-from sqlalchemy import exists, func, or_, select, update
+from sqlalchemy import case, func, or_, select, update
+from sqlalchemy.orm import aliased
 
 from .cancelled_context import stopped_context
 from .database import MAIN_SESSION, row_dict
-from .models import Decision, Event, Job, Message, Session, Skill, Tool, ToolVersion
+from .models import (
+    Decision,
+    Event,
+    Job,
+    Message,
+    Routine,
+    Session,
+    Skill,
+    Tool,
+    ToolVersion,
+)
 from .persistence import event_payload, restore_tool_identity
 
 TERMINAL = {"succeeded", "failed", "cancelled", "interrupted"}
@@ -182,27 +193,84 @@ class Store:
     def claim(self, owner):
         now = time.time()
         with self.db.transaction() as s:
-            # Session lock, not a global queue lock: different sessions can run concurrently.
-            session = s.scalar(
-                select(Session)
+            # Consider only the first queued job in each idle session. A resumed
+            # human interaction keeps its original place ahead of later messages.
+            head = aliased(Job)
+            head_id = (
+                select(head.id)
+                .where(head.session_id == Session.id, head.status == "queued")
+                .order_by(head.created_at, head.id)
+                .correlate(Session)
+                .limit(1)
+                .scalar_subquery()
+            )
+            active = aliased(Job)
+            occupancy = (
+                select(func.count(active.id))
+                .where(
+                    active.routine_id == Routine.id,
+                    active.owner.is_not(None),
+                    active.status.in_(["running", "paused"]),
+                )
+                .correlate(Routine)
+                .scalar_subquery()
+            )
+            capacity = case(
+                (Routine.overlap == "parallel", Routine.max_concurrency), else_=1
+            )
+            query = (
+                select(Session, Job.routine_id)
+                .join(Job, Job.id == head_id)
+                .outerjoin(Routine, Routine.id == Job.routine_id)
                 .where(
                     Session.status == "idle",
-                    exists(
-                        select(Job.id).where(
-                            Job.session_id == Session.id, Job.status == "queued"
-                        )
-                    ),
+                    or_(Routine.id.is_(None), occupancy < capacity),
                 )
-                .order_by(Session.created_at)
-                .with_for_update(skip_locked=True)
+                .order_by(Job.created_at, Job.id)
+                .with_for_update(of=Session, skip_locked=True)
                 .limit(1)
             )
-            if not session:
-                return None
+            excluded = []
+            while True:
+                candidate = query
+                if excluded:
+                    candidate = candidate.where(
+                        or_(Job.routine_id.is_(None), Job.routine_id.not_in(excluded))
+                    )
+                selected = s.execute(candidate).first()
+                if not selected:
+                    return None
+                session, routine_id = selected
+                # Locking the routine serializes claims for different sessions of
+                # the same routine. SKIP LOCKED avoids reversing scheduler locks.
+                if routine_id:
+                    routine = s.scalar(
+                        select(Routine)
+                        .where(Routine.id == routine_id)
+                        .with_for_update(skip_locked=True)
+                    )
+                    if routine is None:
+                        # Deleted routines have their IDs cleared by Routines.delete.
+                        excluded.append(routine_id)
+                        continue
+                    count = s.scalar(
+                        select(func.count(Job.id)).where(
+                            Job.routine_id == routine_id,
+                            Job.owner.is_not(None),
+                            Job.status.in_(["running", "paused"]),
+                        )
+                    )
+                    limit = (
+                        routine.max_concurrency if routine.overlap == "parallel" else 1
+                    )
+                    if count >= limit:
+                        excluded.append(routine_id)
+                        continue
+                break
             job = s.scalar(
                 select(Job)
                 .where(Job.session_id == session.id, Job.status == "queued")
-                .order_by(Job.created_at)
+                .order_by(Job.created_at, Job.id)
                 .with_for_update()
                 .limit(1)
             )
@@ -376,7 +444,11 @@ class Store:
                 raise ValueError(
                     "Human request is no longer current; reload the execution"
                 )
-            if entry.get("name") in ("manage_vault_credential", "browser_request_input", "browser_register_passkey"):
+            if entry.get("name") in (
+                "manage_vault_credential",
+                "browser_request_input",
+                "browser_register_passkey",
+            ):
                 if value.get("decision") != "reject":
                     raise ValueError(
                         "Use the embedded private form to complete this request"

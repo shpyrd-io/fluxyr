@@ -662,7 +662,14 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
         return preview_response(engine.files.path(name))
 
     def preview_response(path):
-        response = send_file(path, conditional=True)
+        # Minimal Linux images may not ship a MIME database with WebP entries.
+        image_type = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".webp": "image/webp",
+        }.get(path.suffix.lower())
+        response = send_file(path, mimetype=image_type, conditional=True)
         response.headers["Content-Security-Policy"] = (
             "sandbox allow-scripts; default-src 'none'; img-src 'self' data: blob:; style-src 'unsafe-inline' 'self'; script-src 'unsafe-inline' 'self'; media-src 'self' blob:; font-src 'self'; connect-src 'none'; form-action 'none'"
         )

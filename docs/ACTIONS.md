@@ -90,6 +90,16 @@ For API calls, `secret('oauth-name')` resolves/refreshes tokens before the actio
 
 This definition expects an existing, tested `action_forecast`. Scheduling it does not create that action or supply credentials.
 
+Concurrency is configured on the routine and enforced when workers start a job:
+
+- `overlap: "queue"` (default): one processing execution at a time; further runs wait.
+- `overlap: "skip"`: skip scheduled occurrences when the routine already has queued or active work. Explicit manual runs and accepted webhooks are preserved in the queue.
+- `overlap: "parallel", max_concurrency: 3`: run up to three executions of this routine simultaneously; excess runs remain queued. `max_concurrency` accepts integers from 1 to 32 and defaults to 1.
+
+The global `FLUXYR_WORKERS` limit (default 4) still bounds all execution workers together. Messages in the same session always run sequentially, even in parallel mode. A job suspended for human input releases its processing slot, but keeps its own session blocked; after the answer, it queues for capacity ahead of later messages in that session. Lowering a routine's limit never interrupts running work: new starts wait until occupancy drops below the new limit. Form changes take effect only after **Save**.
+
+Schema version 6 adds `max_concurrency`; existing routines retain their policy with a limit of 1. In particular, existing reactive routines using `queue` now serialize across sessions too. Choose `parallel` and a limit to enable concurrent customer conversations. Older engine versions cannot open a database after this migration.
+
 ## Approval API
 
 Read `/api/jobs/{job_id}` for pending calls. Resolve each `call_id` with:

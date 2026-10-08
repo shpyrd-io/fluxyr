@@ -118,6 +118,7 @@ class Routines:
             "timezone",
             "enabled",
             "overlap",
+            "max_concurrency",
         }
         values = {
             k: prose_unicode(v) if k in ("name", "prompt") else v
@@ -155,8 +156,15 @@ class Routines:
             row.expectation = row.expectation or ""
             row.timezone = row.timezone or "UTC"
             row.overlap = row.overlap or "queue"
-            if row.overlap not in ("queue", "skip"):
-                raise ValueError("Overlap must be queue or skip")
+            if row.overlap not in ("queue", "skip", "parallel"):
+                raise ValueError("Overlap must be queue, skip or parallel")
+            if row.max_concurrency is None and "max_concurrency" not in values:
+                row.max_concurrency = 1
+            if (
+                type(row.max_concurrency) is not int
+                or not 1 <= row.max_concurrency <= 32
+            ):
+                raise ValueError("Max concurrency must be an integer from 1 to 32")
             if trigger == "reactive":
                 row.cron, row.next_run = None, None
                 row.enabled = values.get(
@@ -230,15 +238,17 @@ class Routines:
                 )
                 .with_for_update(skip_locked=True)
             ):
-                active = s.scalar(
-                    select(Job.id)
-                    .where(
-                        Job.routine_id == row.id,
-                        Job.status.in_(["queued", "running", "paused", "waiting"]),
+                active = None
+                if row.overlap == "skip":
+                    active = s.scalar(
+                        select(Job.id)
+                        .where(
+                            Job.routine_id == row.id,
+                            Job.status.in_(["queued", "running", "paused", "building"]),
+                        )
+                        .limit(1)
                     )
-                    .limit(1)
-                )
-                if not active or row.overlap == "queue":
+                if not active:
                     self.run(row.id, s, f"{row.id}:{row.next_run}")
                 # Coalesce missed occurrences after downtime; never flood the queue.
                 row.next_run = next_occurrence(row.cron, row.timezone)

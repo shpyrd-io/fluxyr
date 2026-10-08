@@ -116,6 +116,7 @@ def test_collecting_auth_formats_and_no_sessions(make_app):
 def test_normalizer_dry_run_activation_and_fanout(make_app):
     app, e, _ = make_app()
     c, rid, path = setup(app, e)
+    e.routines.put({"overlap": "parallel", "max_concurrency": 2}, rid)
     v = e.reactive.create_version(rid, SOURCE)
     assert (
         c.patch(

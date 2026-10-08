@@ -671,7 +671,7 @@ class Registry:
         )
         add(
             "create_routine",
-            "Create a manual, scheduled or reactive routine using implemented actions. Reactive routines start collecting webhook examples without sessions or a normalizer. Success criteria belong in the action spec and Python code, never a separate routine expectation. UTC cron defaults; overlap queue or skip.",
+            "Create a manual, scheduled or reactive routine using implemented actions. Reactive routines start collecting webhook examples without sessions or a normalizer. Success criteria belong in the action spec and Python code, never a separate routine expectation. overlap=queue runs one at a time; skip discards scheduled occurrences while busy; parallel runs up to max_concurrency (1–32, default 1), queuing excess. The global worker limit and per-session ordering still apply. Human waits release processing slots.",
             {
                 "trigger": {"enum": ["manual", "scheduled", "reactive"]},
                 "name": S,
@@ -679,7 +679,8 @@ class Registry:
                 "cron": S,
                 "timezone": S,
                 "enabled": B,
-                "overlap": {"enum": ["queue", "skip"]},
+                "overlap": {"enum": ["queue", "skip", "parallel"]},
+                "max_concurrency": {"type": "integer", "minimum": 1, "maximum": 32},
             },
             ["name", "prompt"],
             lambda a, *_: e.routines.put(a),
@@ -688,7 +689,7 @@ class Registry:
         )
         add(
             "update_routine",
-            "Update a routine or disable its schedule.",
+            "Update a routine or disable its schedule. Concurrency fields: overlap (queue, skip, parallel), max_concurrency (integer 1–32). Lower limits affect future starts without interrupting running jobs.",
             {"routine_id": S, "values": O},
             ["routine_id", "values"],
             lambda a, *_: e.routines.put(a["values"], a["routine_id"]),
