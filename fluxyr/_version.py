@@ -1,3 +1,3 @@
 """Canonical version for the distribution, CLI and running engine."""
 
-__version__ = "0.9.3"
+__version__ = "0.9.4"
