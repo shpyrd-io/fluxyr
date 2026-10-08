@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.9.0 — 2026-10-07
+
+- Add reactive routines with durable webhook collection, versioned Python normalizers, sample testing, session routing, deduplication and explicit replay.
+- Bound webhook sample storage and display 20 summaries per inbox page, loading payloads only when opened.
+- Expose `app.receive_event()` for authenticated custom receiver routes and native tools for building and inspecting reactive routines.
+- Document custom `@app.tool()` functions, typed arguments, execution behavior and human-in-the-loop orchestration.
+- Upgrade database schema to version 5 for reactive routines; existing cron routines migrate automatically. Older engine versions cannot open the upgraded database.
 - Keep progress marks live-only, discard completed activity and update the activity panel independently of conversation history.
 - Add a pending approval API and optional `FLUXYR_APPROVALS_API_KEY` Bearer authorization for listing/responding, with an in-app key prompt.
 - Add `get_current_datetime` for current date/time and timezone-aware relative-date context in agents and builders.

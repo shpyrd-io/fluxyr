@@ -186,6 +186,10 @@ Markdown supplies instructions; Python functions/actions supply executable code.
 
 ## Application tools
 
+See [Custom application tools](APPLICATION_TOOLS.md) for complete examples,
+parameter schemas, database access, errors, concurrency and human-in-the-loop
+workflows with `@app.tool()`.
+
 `@app.tool()` returns the original function and registers its callable name,
 docstring and typed parameters with the harness. Optional decorator arguments:
 `name`, `description`, `parallel_safe=False`, `side_effecting=True`.
@@ -211,6 +215,11 @@ application deployment. Use timeouts in network calls; an arbitrary native Pytho
 function cannot be forcibly paused or killed safely. The generated action SDK's
 pause/resume helpers belong to subprocess actions. Native tools do not use that
 SDK automatically; use the existing `ask_human` tool for conversational questions.
+The agent waits for the answer and makes a subsequent tool call; a native
+function's Python stack is not suspended. See the
+[custom-tool interaction example](APPLICATION_TOOLS.md#human-in-the-loop-with-custom-tools)
+for instructions and the distinction between conversational input and enforced
+approval.
 Do not deploy code changes over pending native side effects; drain/cancel jobs first.
 
 ## HTTP and lifecycle

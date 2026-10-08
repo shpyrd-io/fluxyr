@@ -8,7 +8,7 @@ from croniter import croniter
 from sqlalchemy import select, update
 
 from .database import row_dict
-from .models import Job, Routine, Effect
+from .models import Effect, Job, Routine
 from .text import prose_unicode
 
 
@@ -80,19 +80,30 @@ def action_outcome(db, job_id):
 
 
 class Routines:
-    def __init__(self, db, store):
+    def __init__(self, db, store, reactive=None):
         self.db = db
         self.store = store
+        self.reactive = reactive
 
     def list(self):
         with self.db.transaction() as s:
             return [
-                public_routine(r)
+                self.public(r, s)
                 for r in s.scalars(select(Routine).order_by(Routine.created_at.desc()))
             ]
 
+    def public(self, row, s):
+        result = public_routine(row)
+        if row.trigger == "reactive" and self.reactive:
+            result["reactive"] = self.reactive.describe(s, row.id)
+        return result
+
     def prepare_create(self, values):
-        if values.get("enabled") and not values.get("cron"):
+        if (
+            values.get("enabled")
+            and not values.get("cron")
+            and values.get("trigger") != "reactive"
+        ):
             raise ValueError("Enabled schedules require cron")
         if values.get("cron"):
             next_occurrence(values["cron"], values.get("timezone", "UTC"))
@@ -100,6 +111,7 @@ class Routines:
 
     def put(self, values, routine_id=None):
         allowed = {
+            "trigger",
             "name",
             "prompt",
             "cron",
@@ -120,6 +132,22 @@ class Routines:
             )
             if not row:
                 raise ValueError("Routine not found")
+            old_trigger = row.trigger
+            trigger = values.get(
+                "trigger",
+                "reactive"
+                if old_trigger == "reactive"
+                else "scheduled"
+                if values.get("cron", row.cron)
+                else "manual",
+            )
+            if trigger not in {"manual", "scheduled", "reactive"}:
+                raise ValueError("Trigger must be manual, scheduled or reactive")
+            if old_trigger == "reactive" and trigger != "reactive":
+                raise ValueError(
+                    "Create another routine to change a reactive trigger; its inbox must keep its identity"
+                )
+            row.trigger = trigger
             for key, value in values.items():
                 setattr(row, key, value)
             if not row.name or not row.prompt:
@@ -129,13 +157,31 @@ class Routines:
             row.overlap = row.overlap or "queue"
             if row.overlap not in ("queue", "skip"):
                 raise ValueError("Overlap must be queue or skip")
+            if trigger == "reactive":
+                row.cron, row.next_run = None, None
+                row.enabled = values.get(
+                    "enabled", True if not old_trigger else row.enabled
+                )
+                s.add(row)
+                s.flush()
+                _, cfg = self.reactive.config(s, row.id)
+                if not row.enabled:
+                    cfg.mode = "disabled"
+                elif cfg.mode == "disabled":
+                    cfg.mode = "collecting"
+                s.flush()
+                return self.public(row, s)
+            if trigger == "manual":
+                row.cron, row.enabled = None, False
+            if trigger == "scheduled" and not row.cron:
+                raise ValueError("Scheduled routines require cron")
             upcoming = next_occurrence(row.cron, row.timezone) if row.cron else None
             row.next_run = upcoming if row.enabled else None
             if row.enabled and not row.cron:
                 raise ValueError("Enabled schedules require cron")
             s.add(row)
             s.flush()
-            return public_routine(row)
+            return self.public(row, s)
 
     def run(self, routine_id, s=None, schedule_key=None, parent=None, call_id=None):
         if s is None:
@@ -144,6 +190,10 @@ class Routines:
         row = s.get(Routine, routine_id)
         if not row:
             raise ValueError("Routine not found")
+        if row.trigger == "reactive":
+            raise ValueError(
+                "Reactive routines run from incoming events; use the inbox to test or replay a receipt"
+            )
         return self.store.enqueue(
             prose_unicode(row.prompt),
             None,
@@ -173,7 +223,11 @@ class Routines:
         with self.db.transaction() as s:
             for row in s.scalars(
                 select(Routine)
-                .where(Routine.enabled == True, Routine.next_run <= time.time())
+                .where(
+                    Routine.trigger == "scheduled",
+                    Routine.enabled == True,
+                    Routine.next_run <= time.time(),
+                )
                 .with_for_update(skip_locked=True)
             ):
                 active = s.scalar(

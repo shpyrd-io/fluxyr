@@ -177,3 +177,20 @@ test("failed branch marks the parallel container failed and retains executed ver
   assert.equal(flow[0].status, "failed");
   assert.deepEqual(flow[0].children?.map(n => n.versionId), ["v1", "v1"]);
 });
+
+test("reactive execution input is identified by its persisted webhook receipt", () => {
+  const flow = executionFlow(
+    [
+      {
+        id: "message",
+        job_id: "job",
+        role: "user",
+        content: "Incoming event",
+        created_at: 1,
+      },
+    ],
+    [e(2, "webhook_received", { receipt_id: 42, session_key: "customer-1" })],
+  );
+  assert.equal(flow[0].kind, "webhook");
+  assert.equal(flow[0].label, "Receipt #42 · customer-1");
+});

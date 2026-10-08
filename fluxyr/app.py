@@ -460,6 +460,10 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
     def activate(vid):
         return jsonify(engine.skills.activate(vid))
 
+    from .reactive_routes import register_reactive_routes
+
+    register_reactive_routes(routes, engine)
+
     @routes.get("/api/routines")
     def routines():
         return jsonify(engine.routines.list())

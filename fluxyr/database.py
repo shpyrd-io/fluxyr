@@ -70,7 +70,7 @@ class Database:
                 conn.execute(text("SELECT pg_advisory_xact_lock(70423901)"))
             Base.metadata.create_all(conn)
             version = conn.scalar(select(Version.id))
-            if version not in (None, 1, 2, 3, 4):
+            if version not in (None, 1, 2, 3, 4, 5):
                 raise RuntimeError("Unsupported database schema version")
             if "spec" not in {c["name"] for c in inspect(conn).get_columns("skills")}:
                 conn.execute(
@@ -94,10 +94,23 @@ class Database:
                         "ALTER TABLE sessions ADD COLUMN memory_epoch INTEGER NOT NULL DEFAULT 0"
                     )
                 )
+            if "trigger" not in {
+                c["name"] for c in inspect(conn).get_columns("routines")
+            }:
+                conn.execute(
+                    text(
+                        "ALTER TABLE routines ADD COLUMN trigger VARCHAR(16) NOT NULL DEFAULT 'manual'"
+                    )
+                )
+                conn.execute(
+                    text(
+                        "UPDATE routines SET trigger = 'scheduled' WHERE cron IS NOT NULL AND cron <> ''"
+                    )
+                )
             if version is None:
-                conn.execute(insert(Version).values(id=4))
-            elif version != 4:
-                conn.execute(update(Version).where(Version.id == version).values(id=4))
+                conn.execute(insert(Version).values(id=5))
+            elif version != 5:
+                conn.execute(update(Version).where(Version.id == version).values(id=5))
         with self.transaction() as db:
             if not db.get(Session, MAIN_SESSION):
                 db.add(Session(id=MAIN_SESSION, title="Workbench", kind="main"))

@@ -3,6 +3,15 @@
 For reading pending requests and submitting decisions from another application,
 see the [approval HTTP API and optional Bearer authorization](APPROVALS_API.md).
 
+## Custom application tools
+
+For `@app.tool()` methods, use conversation-level `ask_human` calls between native
+tool invocations. The agent resumes after the human answers and can pass the
+answer into the next method. Native methods do not support the generated action
+SDK's in-function pause/resume helpers or a `requires_approval` decorator option.
+See [custom tools and human-in-the-loop examples](APPLICATION_TOOLS.md#human-in-the-loop-with-custom-tools)
+for a complete workflow and the limits of instruction-based approval.
+
 ## Input limits
 
 `ask_human` accepts a question of 1–500 characters and, optionally, 2–6 plain

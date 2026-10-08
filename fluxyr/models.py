@@ -163,6 +163,9 @@ class Routine(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String(255), unique=True)
     prompt: Mapped[str] = mapped_column(Text)
+    trigger: Mapped[str] = mapped_column(
+        String(16), default="manual", server_default="manual"
+    )
     expectation: Mapped[str] = mapped_column(Text)
     output_schema: Mapped[dict | None] = mapped_column(JSON)
     checks: Mapped[list] = mapped_column(JSON, default=list)
@@ -194,3 +197,82 @@ class MemoryTask(Base):
     available_at: Mapped[float] = mapped_column(Float, default=time.time)
     created_at: Mapped[float] = mapped_column(Float, default=time.time)
     finished_at: Mapped[float | None] = mapped_column(Float)
+
+
+class ReactiveConfig(Base):
+    __tablename__ = "reactive_configs"
+    routine_id: Mapped[str] = mapped_column(
+        ForeignKey("routines.id", ondelete="CASCADE"), primary_key=True
+    )
+    mode: Mapped[str] = mapped_column(String(16), default="collecting")
+    token: Mapped[str] = mapped_column(String(100), unique=True)
+    signing_secret: Mapped[str | None] = mapped_column(Text)
+    normalizer_id: Mapped[str | None] = mapped_column(String(36))
+
+
+class NormalizerVersion(Base):
+    __tablename__ = "normalizer_versions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    routine_id: Mapped[str] = mapped_column(
+        ForeignKey("routines.id", ondelete="CASCADE"), index=True
+    )
+    source: Mapped[str] = mapped_column(Text)
+    dependencies: Mapped[list] = mapped_column(JSON, default=list)
+    tested_at: Mapped[float | None] = mapped_column(Float)
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+
+
+class IncomingReceipt(Base):
+    __tablename__ = "incoming_receipts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    routine_id: Mapped[str] = mapped_column(
+        ForeignKey("routines.id", ondelete="CASCADE"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(24), index=True)
+    envelope: Mapped[dict] = mapped_column(JSON)
+    normalizer_id: Mapped[str | None] = mapped_column(String(36))
+    prompt: Mapped[str] = mapped_column(Text)
+    transport_key: Mapped[str | None] = mapped_column(String(64))
+    result: Mapped[dict | None] = mapped_column(JSON)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+    __table_args__ = (
+        UniqueConstraint("routine_id", "transport_key"),
+        {"sqlite_autoincrement": True},
+    )
+
+
+class NormalizationAttempt(Base):
+    __tablename__ = "normalization_attempts"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    receipt_id: Mapped[int] = mapped_column(
+        ForeignKey("incoming_receipts.id", ondelete="CASCADE"), index=True
+    )
+    version_id: Mapped[str] = mapped_column(
+        ForeignKey("normalizer_versions.id", ondelete="CASCADE"), index=True
+    )
+    dry_run: Mapped[bool] = mapped_column(Boolean)
+    status: Mapped[str] = mapped_column(String(24), default="running")
+    result: Mapped[dict | None] = mapped_column(JSON)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+    finished_at: Mapped[float | None] = mapped_column(Float)
+
+
+class ReactiveSession(Base):
+    __tablename__ = "reactive_sessions"
+    routine_id: Mapped[str] = mapped_column(
+        ForeignKey("routines.id", ondelete="CASCADE"), primary_key=True
+    )
+    session_key: Mapped[str] = mapped_column(String(255), primary_key=True)
+    session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id"))
+
+
+class ReactiveDelivery(Base):
+    __tablename__ = "reactive_deliveries"
+    routine_id: Mapped[str] = mapped_column(
+        ForeignKey("routines.id", ondelete="CASCADE"), primary_key=True
+    )
+    event_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"))
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)

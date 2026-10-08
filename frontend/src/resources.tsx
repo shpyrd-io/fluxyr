@@ -26,7 +26,7 @@ const descriptions: Record<string, string> = {
   Tools:
     "The tools currently available to your agent, with their actual input schemas.",
   Skills: "Instructions and versioned Python actions your agent can use.",
-  Routines: "Repeatable tasks, run on demand or on your schedule.",
+  Routines: "Tasks triggered manually, on a schedule or by incoming webhooks.",
   Vault: "Encrypted secrets, OAuth connections and client certificates.",
   Files: "Your agent’s local data directory. No remote storage.",
   Settings: "Inspect the configuration loaded from your application environment.",

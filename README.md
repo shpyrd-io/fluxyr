@@ -104,7 +104,9 @@ request human input and schedule routines.
 
 - [Minimal application](examples/minimal)
 - [Framework API and configuration](docs/FRAMEWORK.md)
+- [Custom tools (`@app.tool`) and human-in-the-loop workflows](docs/APPLICATION_TOOLS.md)
 - [Native tools reference](docs/TOOLS.md)
+- [Reactive routines and webhooks](docs/REACTIVE_ROUTINES.md)
 - [Python actions and credentials](docs/ACTIONS.md)
 - [Human interaction](docs/HUMAN_INTERACTION.md)
 - [Approval API and optional Bearer key](docs/APPROVALS_API.md)

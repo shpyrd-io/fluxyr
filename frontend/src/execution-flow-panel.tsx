@@ -28,6 +28,7 @@ import { executionFlow, type FlowNode } from "./execution-flow";
 import type { RecordData } from "./api";
 import { UsageBadge } from "./usage";
 const labels: Record<string, string> = {
+  webhook: "Webhook event",
   user: "User input",
   assistant: "Agent answer",
   reasoning: "Reasoning",
@@ -39,6 +40,7 @@ const labels: Record<string, string> = {
   execution: "Execution",
 };
 const icons: Record<string, typeof Wrench> = {
+  webhook: GitBranch,
   user: UserRound,
   assistant: MessageSquare,
   reasoning: BrainCircuit,

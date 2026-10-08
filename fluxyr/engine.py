@@ -10,21 +10,22 @@ from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy import text
 
-from .builds import Builds
 from .activity import ActivityEmitter
-from .memory_queue import MemoryQueue, layers, restore_memories
+from .builds import Builds
 from .core.brain import SyntheticBrain
 from .core.utils.enums import BrainState
 from .database import MAIN_SESSION, Database
 from .files import Files
-from .interactions.tool_outputs import build_tool_outputs
 from .interactions.human import action_wait, continuation_for, repark, request_for
-from .runtime.human_protocol import response_for
+from .interactions.tool_outputs import build_tool_outputs
+from .memory_queue import MemoryQueue, layers, restore_memories
 from .models import Event, Job, Message, Session
 from .prompts import load_prompt
 from .providers import make_adapter, response_text
+from .reactive import ReactiveRoutines
 from .routines import Routines, action_outcome
 from .runtime.effects import Effects
+from .runtime.human_protocol import response_for
 from .runtime.interruptible import InterruptibleAdapter
 from .runtime.python_runner import PythonRunner
 from .skills import Skills
@@ -55,7 +56,8 @@ class Engine:
         self.native_tools = {}
         self.app = None
         self.store.file_skills = self.skills.file_skills
-        self.routines = Routines(self.db, self.store)
+        self.reactive = ReactiveRoutines(self)
+        self.routines = Routines(self.db, self.store, self.reactive)
         self.effects = Effects(self.db)
         self.builds = Builds(self)
         self.memory_queue = MemoryQueue(self)
@@ -131,6 +133,7 @@ class Engine:
         self.thread = threading.Thread(
             target=self._supervise, name="agent-supervisor", daemon=True
         )
+        self.reactive.start()
         self.thread.start()
         self.memory_queue.start()
 
@@ -138,6 +141,7 @@ class Engine:
         self.stopping.set()
         if self.thread:
             self.thread.join(timeout=5)
+        self.reactive.stop()
         if self.pool:
             self.pool.shutdown(wait=True)
         if self.memory_queue.thread:
@@ -167,6 +171,7 @@ class Engine:
                     heartbeat = time.monotonic()
                 if time.monotonic() - scheduled >= 1:
                     self.routines.tick()
+                    self.reactive.tick()
                     scheduled = time.monotonic()
                 self.builds.resolve_dependencies()
                 self.futures = {f for f in self.futures if not f.done()}

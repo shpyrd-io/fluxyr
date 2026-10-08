@@ -28,6 +28,7 @@ import {
 import { Actions } from "./resources";
 import { VaultForm, vaultKinds as kinds } from "./vault-form";
 import { CronEditor } from "./cron-editor";
+import { ReactiveRoutine } from "./reactive-routine";
 import { describeCron } from "./cron";
 
 type Props = {
@@ -38,6 +39,7 @@ type Props = {
 const defaults: Record<string, RecordData> = {
   Skills: { name: "", description: "", instruction: "", spec: "" },
   Routines: {
+    trigger: "manual",
     name: "",
     prompt: "",
     cron: "",
@@ -111,9 +113,15 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
         body = {
           name: values.name,
           prompt: values.prompt,
+          trigger: values.trigger,
           cron: values.cron || null,
           timezone: values.timezone,
-          enabled: values.enabled,
+          enabled:
+            values.trigger === "reactive"
+              ? selected
+                ? values.enabled
+                : true
+              : values.enabled,
           overlap: values.overlap,
         };
       await api(
@@ -235,20 +243,36 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                     </>
                   ) : page === "Routines" ? (
                     <>
-                      <span title={item.cron || "Manual"}>
-                        {describeCron(item.cron)}
-                      </span>
-                      <small>{item.timezone}</small>
-                      <Badge variant={item.enabled ? "ACTIVE" : "OFFLINE"}>
-                        {item.enabled ? "Scheduled" : "Disabled"}
-                      </Badge>
+                      {item.trigger === "reactive" ? (
+                        <Badge
+                          variant={
+                            item.reactive?.mode === "active"
+                              ? "ACTIVE"
+                              : "OFFLINE"
+                          }
+                        >
+                          {item.reactive?.mode === "collecting"
+                            ? "Collecting examples"
+                            : item.reactive?.mode}
+                        </Badge>
+                      ) : (
+                        <>
+                          <span title={item.cron || "Manual"}>
+                            {describeCron(item.cron)}
+                          </span>
+                          <small>{item.timezone}</small>
+                          <Badge variant={item.enabled ? "ACTIVE" : "OFFLINE"}>
+                            {item.enabled ? "Scheduled" : "Disabled"}
+                          </Badge>
+                        </>
+                      )}
                     </>
                   ) : (
                     <Badge variant="OFFLINE">Encrypted</Badge>
                   )}
                 </div>
                 <div className="catalogue-controls">
-                  {page === "Routines" && (
+                  {page === "Routines" && item.trigger !== "reactive" && (
                     <Button
                       aria-label={`Run ${item.name}`}
                       disabled={busy}
@@ -352,47 +376,58 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                   ) : page === "Routines" ? (
                     <>
                       <p>{item.prompt}</p>
-                      <dl className="resource-facts">
-                        <div>
-                          <dt>Schedule</dt>
-                          <dd>
-                            {describeCron(item.cron)} · {item.timezone}
-                            {item.cron && (
-                              <code className="routine-cron-code">
-                                {item.cron}
-                              </code>
-                            )}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>Next run</dt>
-                          <dd>
-                            {item.next_run
-                              ? date(item.next_run)
-                              : "Not scheduled"}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>Overlapping runs</dt>
-                          <dd>
-                            {item.overlap === "queue"
-                              ? "Queue the next execution"
-                              : "Skip while running"}
-                          </dd>
-                        </div>
-                      </dl>
-                      <Button
-                        disabled={busy || (!item.cron && !item.enabled)}
-                        onClick={() =>
-                          action(() =>
-                            api(path + "/" + item.id, "PATCH", {
-                              enabled: !item.enabled,
-                            }),
-                          )
-                        }
-                      >
-                        {item.enabled ? "Disable" : "Enable"} schedule
-                      </Button>
+                      {item.trigger === "reactive" ? (
+                        <ReactiveRoutine
+                          key={item.id}
+                          routine={item}
+                          reload={load}
+                          open={open}
+                        />
+                      ) : (
+                        <>
+                          <dl className="resource-facts">
+                            <div>
+                              <dt>Schedule</dt>
+                              <dd>
+                                {describeCron(item.cron)} · {item.timezone}
+                                {item.cron && (
+                                  <code className="routine-cron-code">
+                                    {item.cron}
+                                  </code>
+                                )}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Next run</dt>
+                              <dd>
+                                {item.next_run
+                                  ? date(item.next_run)
+                                  : "Not scheduled"}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Overlapping runs</dt>
+                              <dd>
+                                {item.overlap === "queue"
+                                  ? "Queue the next execution"
+                                  : "Skip while running"}
+                              </dd>
+                            </div>
+                          </dl>
+                          <Button
+                            disabled={busy || (!item.cron && !item.enabled)}
+                            onClick={() =>
+                              action(() =>
+                                api(path + "/" + item.id, "PATCH", {
+                                  enabled: !item.enabled,
+                                }),
+                              )
+                            }
+                          >
+                            {item.enabled ? "Disable" : "Enable"} schedule
+                          </Button>
+                        </>
+                      )}
                     </>
                   ) : (
                     <>
@@ -551,42 +586,70 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                         onChange={(e) => set("prompt", e.target.value)}
                       />
                     </Label>
-                    <CronEditor
-                      cron={values.cron || ""}
-                      timezone={values.timezone ?? "UTC"}
-                      onChange={(cron) =>
-                        setValues((v) => ({
-                          ...v,
-                          cron,
-                          enabled: cron ? v.enabled : false,
-                        }))
-                      }
-                      onTimezone={(timezone) => set("timezone", timezone)}
-                      onValidity={setScheduleValid}
-                    />
                     <Label>
-                      When another execution is running
+                      Trigger
                       <SelectField
-                        value={values.overlap}
-                        onValueChange={(value) => set("overlap", value)}
+                        value={values.trigger || "manual"}
+                        disabled={selected?.trigger === "reactive"}
+                        onValueChange={(value) => {
+                          set("trigger", value);
+                          setScheduleValid(true);
+                        }}
                       >
-                        <SelectOption value="queue">
-                          Queue the next execution
-                        </SelectOption>
-                        <SelectOption value="skip">
-                          Skip this occurrence
+                        <SelectOption value="manual">Manual</SelectOption>
+                        <SelectOption value="scheduled">Scheduled</SelectOption>
+                        <SelectOption value="reactive">
+                          Reactive · webhook
                         </SelectOption>
                       </SelectField>
                     </Label>
-                    <Label className="check-field">
-                      <Switch
-                        type="button"
-                        disabled={!values.cron}
-                        checked={!!values.enabled}
-                        onCheckedChange={(checked) => set("enabled", checked)}
-                      />
-                      Enable schedule
-                    </Label>
+                    {values.trigger === "reactive" ? (
+                      <p className="muted">
+                        The routine starts collecting examples without a
+                        normalizer. Save to get its webhook URL and inbox.
+                      </p>
+                    ) : values.trigger === "scheduled" ? (
+                      <>
+                        <CronEditor
+                          cron={values.cron || ""}
+                          timezone={values.timezone ?? "UTC"}
+                          onChange={(cron) =>
+                            setValues((v) => ({
+                              ...v,
+                              cron,
+                              enabled: cron ? v.enabled : false,
+                            }))
+                          }
+                          onTimezone={(timezone) => set("timezone", timezone)}
+                          onValidity={setScheduleValid}
+                        />
+                        <Label>
+                          When another execution is running
+                          <SelectField
+                            value={values.overlap}
+                            onValueChange={(value) => set("overlap", value)}
+                          >
+                            <SelectOption value="queue">
+                              Queue the next execution
+                            </SelectOption>
+                            <SelectOption value="skip">
+                              Skip this occurrence
+                            </SelectOption>
+                          </SelectField>
+                        </Label>
+                        <Label className="check-field">
+                          <Switch
+                            type="button"
+                            disabled={!values.cron}
+                            checked={!!values.enabled}
+                            onCheckedChange={(checked) =>
+                              set("enabled", checked)
+                            }
+                          />
+                          Enable schedule
+                        </Label>
+                      </>
+                    ) : null}
                   </>
                 ) : null}
                 {error && (
@@ -602,7 +665,12 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                   <Button
                     type="submit"
                     className="primary"
-                    disabled={busy || (page === "Routines" && !scheduleValid)}
+                    disabled={
+                      busy ||
+                      (page === "Routines" &&
+                        values.trigger === "scheduled" &&
+                        (!scheduleValid || !values.cron))
+                    }
                   >
                     {busy ? "Saving…" : "Save " + singular}
                   </Button>

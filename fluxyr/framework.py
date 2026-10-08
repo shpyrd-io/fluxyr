@@ -76,6 +76,14 @@ class Fluxyr(Flask):
         """SQLAlchemy database; use db.transaction() for a scoped Session."""
         return self.engine.db
 
+    def receive_event(self, routine_id, envelope, *, idempotency_key=None):
+        """Deliver an authenticated event from a custom route to a reactive inbox.
+
+        The caller owns provider-specific authentication. This persists only;
+        normalization and agent execution happen asynchronously after start().
+        """
+        return self.engine.reactive.receive(routine_id, envelope, idempotency_key)
+
     def start(self):
         self.initialize()
         if not self._adapter_factory:

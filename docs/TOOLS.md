@@ -1,6 +1,6 @@
 # Native tools
 
-Fluxyr ships with **38 built-in tools** across the agent and the isolated skill
+Fluxyr ships with **45 built-in tools** across the agent and the isolated skill
 builder. They cover research, files, skills, credentials, human interaction,
 routines, execution inspection and memory. This reference follows the current source.
 
@@ -129,7 +129,7 @@ model-facing tools. See [human interaction](HUMAN_INTERACTION.md).
 | Tool | Context | Parameters | Purpose |
 | --- | --- | --- | --- |
 | `list_routines` | Agent | None | List saved routines and their schedules. |
-| `create_routine` | Agent | `name`, `prompt`, `cron?`, `timezone?`, `enabled?`, `overlap?` | Save a manual or scheduled routine using available actions. Cron uses five fields; timezone defaults to UTC and overlap policy to `queue` (or `skip`). |
+| `create_routine` | Agent | `name`, `prompt`, `trigger?`, `cron?`, `timezone?`, `enabled?`, `overlap?` | Save a manual, scheduled or reactive routine using available actions. Cron uses five fields; timezone defaults to UTC and overlap policy to `queue` (or `skip`). |
 | `update_routine` | Agent | `routine_id`, `values` | Update any of `name`, `prompt`, `cron`, `timezone`, `enabled` and `overlap`, including disabling a schedule. |
 | `run_routine` | Agent | `routine_id` | Enqueue a manual run in its own conversation, linked to the calling execution. |
 | `list_executions` | Agent | `limit?`, `before?` | List recent execution IDs and concise status. Limit is 1–50; use returned `next_before` to page backward. |
@@ -180,3 +180,19 @@ The registration sources are [the engine registry](../fluxyr/tools/registry.py),
 [web tools](../fluxyr/tools/web.py), [memory access](../fluxyr/core/memory_tools.py),
 [memory write schemas](../fluxyr/core/brain_tool_executor.py) and
 [automatic extraction](../fluxyr/core/memory/manager.py).
+
+## Reactive inbox and normalizers
+
+See [Reactive routines](REACTIVE_ROUTINES.md) for collection, payload formats,
+session correlation, test/activation and replay semantics. These native tools
+are available to the agent; technical normalizers themselves are never model tools.
+
+| Tool | Inputs | Purpose |
+| --- | --- | --- |
+| `list_routine_receipts` | `routine_id`, `before?`, `limit?` | Paginate IDs/status without loading payloads. |
+| `inspect_routine_receipt` | `routine_id`, `receipt_id`, `offset?` | Read a bounded JSON-text slice of payload, attempts and linked jobs. |
+| `create_routine_normalizer` | `routine_id`, exactly one of `source`/`source_path`, `dependencies?` | Save a technical Python version; paths are within data_dir. |
+| `inspect_routine_normalizer` | `routine_id`, `version_id`, `offset?` | Read saved source and metadata in bounded JSON-text slices. |
+| `test_routine_normalizer` | `routine_id`, `receipt_id`, `version_id` | Dry-run against a collected sample, without dispatch. |
+| `configure_reactive_routine` | `routine_id`, `mode?`, `normalizer_id?` | Configure collection/activation/disable; active requires tested version. |
+| `replay_routine_receipt` | `routine_id`, `receipt_id` | Explicit replay using active version; can cause real agent actions. |

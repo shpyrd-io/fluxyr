@@ -2861,3 +2861,13 @@ input[type="file"]::file-selector-button {
 .history-edge { font-size: 11px; color: var(--muted); text-align: center; padding: 6px 0; }
 .conversation { overflow-anchor: none; }
 .flow-scroll { overflow-anchor: none; }
+
+.reactive-inbox { display: grid; gap: 14px; min-width: 0; }
+.reactive-inbox label { display: grid; gap: 8px; min-width: 0; }
+.reactive-settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.reactive-receipts { display: grid; gap: 4px; max-height: 320px; overflow-y: auto; }
+.reactive-receipt { display: flex; justify-content: space-between; gap: 12px; width: 100%; min-width: 0; }
+.reactive-sample { border: 1px solid var(--border); padding: 14px; min-width: 0; display: grid; gap: 12px; }
+.reactive-inbox pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow: auto; font-size: 12px; }
+.reactive-inbox details > * + * { margin-top: 12px; }
+@media (max-width: 700px) { .reactive-settings { grid-template-columns: 1fr; } .reactive-receipt { flex-wrap: wrap; } }

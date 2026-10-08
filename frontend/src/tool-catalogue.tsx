@@ -28,6 +28,13 @@ const toolGroups: Record<string, string[]> = {
     "create_routine",
     "update_routine",
     "run_routine",
+    "list_routine_receipts",
+    "inspect_routine_receipt",
+    "create_routine_normalizer",
+    "test_routine_normalizer",
+    "inspect_routine_normalizer",
+    "configure_reactive_routine",
+    "replay_routine_receipt",
   ],
   "Execution & interaction": [
     "list_executions",
@@ -71,7 +78,7 @@ const toolSummaries: Record<string, string> = {
   check_vault_credential:
     "Check credential readiness and OAuth token exchange without exposing secrets.",
   list_routines: "List saved routines and schedules.",
-  create_routine: "Create a task to run manually or on a schedule.",
+  create_routine: "Create a manual, scheduled or reactive task.",
   update_routine: "Change a routine or its schedule.",
   run_routine: "Start a routine in a separate conversation.",
   list_executions: "List previous and ongoing executions.",

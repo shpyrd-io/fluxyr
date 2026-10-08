@@ -65,8 +65,24 @@ export function executionFlow(
       } else legacy.get(e.job_id)?.active.delete(key);
     }
   }
+  const incomingByJob = new Map(
+    ordered
+      .filter((e) => e.type === "webhook_received")
+      .map((e) => [e.job_id, e]),
+  );
   function node(item: TimelineItem): FlowNode | null {
     const p = item.event?.payload || {};
+    const incoming =
+      item.kind === "user" ? incomingByJob.get(item.jobId) : undefined;
+    if (incoming)
+      return {
+        id: item.id,
+        jobId: item.jobId,
+        kind: "webhook",
+        label: `Receipt #${incoming.payload.receipt_id} · ${incoming.payload.session_key}`,
+        status: "completed",
+        target: item.id,
+      };
     if (item.kind !== "event")
       return {
         id: item.id,
