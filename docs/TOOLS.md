@@ -129,7 +129,7 @@ model-facing tools. See [human interaction](HUMAN_INTERACTION.md).
 | Tool | Context | Parameters | Purpose |
 | --- | --- | --- | --- |
 | `list_routines` | Agent | None | List saved routines and their schedules. |
-| `create_routine` | Agent | `name`, `prompt`, `trigger?`, `cron?`, `timezone?`, `enabled?`, `overlap?`, `max_concurrency?` | Save a manual, scheduled or reactive routine. `queue` (default) serializes runs; `skip` skips scheduled occurrences while busy; `parallel` permits up to `max_concurrency` (integer 1–32, default 1) and queues excess runs. Global worker capacity and session ordering still apply. |
+| `create_routine` | Agent | `name`, `prompt`, `trigger?`, `cron?`, `timezone?`, `enabled?`, `overlap?`, `max_concurrency?` | Save a manual, scheduled, reactive or worker routine. `queue` (default) serializes runs; `skip` skips scheduled occurrences while busy; `parallel` permits up to `max_concurrency` (integer 1–32, default 1) and queues excess runs. Global worker capacity and session ordering still apply. |
 | `update_routine` | Agent | `routine_id`, `values` | Update routine fields including `overlap` and `max_concurrency`. Lowering concurrency leaves running work intact and restricts subsequent starts. |
 | `run_routine` | Agent | `routine_id` | Enqueue a manual run in its own conversation, linked to the calling execution. |
 | `list_executions` | Agent | `limit?`, `before?` | List recent execution IDs and concise status. Limit is 1–50; use returned `next_before` to page backward. |
@@ -208,3 +208,16 @@ Enabled with `FLUXYR_BROWSER_ENABLED=true`; see [installation and private input]
 | `browser_request_input` | Both | `origin`, `ref` or `selector`, `title?`, `vault_item_id?`, `field?`, `submit?` | Pause for private human input, or explicit consent to use a specified Vault item. The card is also surfaced in the caller's conversation when a builder requests it. |
 | `browser_register_passkey` | Both | `origin`, `ref` or `selector`, `suggested_name?`, `vault_item_id?` | Ask human confirmation, then register through the site's button and save the key directly in Vault. For recovery after a failed save, provide the pending Vault ID and omit the button. |
 | `browser_use_passkey` | Both | `origin`, `vault_item_id`, `ref` or `selector` | Restore a Vault passkey privately and click the passkey-login button. Returns assertion/storage outcome, not a guarantee of server acceptance. |
+
+## Continuous worker routines
+
+See [Worker routines](WORKER_ROUTINES.md) for the Python context contract, lifecycle, durable delivery and examples. Use `create_routine(trigger="worker", ...)` first.
+
+| Tool | Inputs | Behavior |
+| --- | --- | --- |
+| `create_routine_worker` | `routine_id`, exactly one of `source` / `source_path`, `dependencies?`, `secrets?` | Save immutable listener code defining `run(ctx)`. Source paths are relative to Files/data. Secrets are exact Vault item names. |
+| `inspect_routine_worker` | `routine_id`, `version_id?`, `offset?` | Read configuration and bounded logs, or one code version. JSON-text slices expose `next_offset`. |
+| `test_routine_worker` | `routine_id`, `version_id`, `seconds?` | Test 1–30 seconds (default 5) after environment setup. Real network/Vault, samples only, no agent jobs or live checkpoint update. Stop any running listener first. |
+| `configure_routine_worker` | `routine_id`, `version_id?`, `mode?`, `restart?` | Select code, collect, activate tested code, stop, or reconnect/reset failures. |
+
+Existing receipt inspection, replay, normalizers and session APIs also work with worker routines. Human-in-the-loop requests are handled by downstream executions, not inside the continuous listener.

@@ -53,14 +53,14 @@ credentials used by actions.
 
 | Variable | Default / requirement |
 | --- | --- |
-| `DATABASE_URL` | SQLite at `<root>/.runtime/fluxyr.sqlite3`; optional SQLite or PostgreSQL SQLAlchemy URL |
+| `DATABASE_URL` | SQLite at `<root>/state/fluxyr.sqlite3`; optional SQLite or PostgreSQL SQLAlchemy URL |
 | `FLUXYR_AGENT_NAME` | `Default Agent`; instance name displayed in the sidebar |
 | `FLUXYR_APPROVALS_API_KEY` | Empty disables approval authentication. When set, requires Bearer authorization for approval listing, attached previews, decisions and requested credential saves; other APIs remain open. See [approval API](APPROVALS_API.md). |
 | `FLUXYR_PROVIDER` | `openrouter`; also `openai`, `anthropic`, `custom` |
 | `FLUXYR_MODEL` | Required when starting the agent worker; no implicit model |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY` | Key for the selected provider required when starting workers |
-| `FLUXYR_ROOT` | Current working directory. Optional override for `data`, `workspace`, `.runtime` (e.g. a Docker volume) |
-| `FLUXYR_SKILLS_DIR` | Empty disables file skills; otherwise path relative to `FLUXYR_ROOT`, or absolute |
+| `FLUXYR_ROOT` | `.fluxyr` relative to the launch directory; one root for data, state, cache, runtime and workspace (e.g. `/var/lib/fluxyr` on a volume) |
+| `FLUXYR_SKILLS_DIR` | Empty disables file skills; otherwise path relative to the launch/project directory, or absolute; independent of `FLUXYR_ROOT` |
 | `FLUXYR_BROWSER_ENABLED` | `false`; enable optional [browser tools and private Vault/OTP input](BROWSER.md) |
 | `FLUXYR_HOST` | `127.0.0.1` |
 | `PORT` | `5050`; an explicit `app.run(port=...)` wins |
@@ -71,7 +71,7 @@ credentials used by actions.
 | `FLUXYR_BASH_MAX_OUTPUT_BYTES` | Maximum captured output per Bash call; `33554432` (32 MiB) |
 | `FLUXYR_TOOL_TIMEOUT` | `300` seconds, Python actions and file/shell tools |
 | `FLUXYR_EXECUTION_MODE` | `local` (default) or `landlock`; Linux write confinement, see [execution protection](EXECUTION_PROTECTION.md) |
-| `FLUXYR_WORKSPACE_RETENTION_DAYS` | `30`; startup cleanup of old temporary workdirs, `0` disables |
+| `FLUXYR_WORKSPACE_RETENTION_DAYS` | `30`; startup and daily cleanup of old temporary workdirs, `0` disables |
 | `FLUXYR_MAX_ITERATIONS` | `40` |
 | `FLUXYR_PROVIDER_ENDPOINT` | Empty uses the built-in endpoint; required for `custom` |
 | `FLUXYR_PROVIDER_FORMAT` | Built-in provider format; required for `custom`: `openai` or `anthropic` |
@@ -79,7 +79,7 @@ credentials used by actions.
 | `FLUXYR_MAX_TOKENS` | `16000` |
 | `FLUXYR_REASONING_EFFORT` | Empty uses provider default |
 | `FLUXYR_THINKING_MODE`, `FLUXYR_THINKING_BUDGET` | `none`, `0`; Anthropic thinking or OpenRouter reasoning |
-| `VAULT_ENCRYPTION_KEY` | Optional; otherwise generated/persisted under `.runtime` |
+| `VAULT_ENCRYPTION_KEY` | Optional; otherwise generated/persisted at `<root>/state/vault.key` |
 | `FLUXYR_LOG_LEVEL` | `INFO` (CLI) |
 | `FLUXYR_APP` | Optional CLI import target; `--app` wins |
 
@@ -88,6 +88,77 @@ requiring a provider key. The UI never returns credential values or the database
 For an existing installation, move model options/provider credentials previously
 saved through Settings into its environment before restarting.
 
+
+### Instance storage and volumes
+
+By default all generated instance storage is under `.fluxyr/` in the directory
+where the process starts. Set `FLUXYR_ROOT` to another relative or absolute path
+to relocate the whole instance. It does not relocate application code, `.env` or
+relative `FLUXYR_SKILLS_DIR` paths.
+
+```text
+.fluxyr/
+  data/                 Files, uploads and previews
+    tmp/browser/        Browser captures/downloads, retained for 30 days
+  state/                Default fluxyr.sqlite3, vault.key and layout marker
+  cache/                Rebuildable Python environments and browser controller
+  runtime/              Browser profiles, certificate scratch files, maintenance marker
+  workspace/            Temporary execution directories, with job-aware retention
+```
+
+`state` and `data` are persistent. Keep the existing `VAULT_ENCRYPTION_KEY` when
+provided externally; otherwise back up `state/vault.key` with the database.
+Never apply age-based deletion to the whole root. `workspace` stays outside Files
+and uses job status as well as age to decide what can be deleted. Logs go to stdout
+unless your process manager redirects them.
+
+The Dockerfile sets `FLUXYR_ROOT=/var/lib/fluxyr`. Mount one volume there:
+
+```sh
+docker run --rm --env-file .env -p 5050:5050 \
+  -v fluxyr-data:/var/lib/fluxyr fluxyr
+```
+
+An explicit `DATABASE_URL` is still authoritative. PostgreSQL remains external;
+an explicitly configured SQLite file outside this root needs its own persistence.
+
+#### Migrating an existing installation
+
+The default directory and the internal storage layout have changed. Startup
+detects a legacy `.runtime` directory and refuses to silently create a fresh
+database/key. Stop **all** old server, HTTP-only and worker processes first.
+Use the old instance root as `--from`, not its `data` directory:
+
+```sh
+fluxyr migrate-storage --from . --to .fluxyr          # preview only
+fluxyr migrate-storage --from . --to .fluxyr --apply  # copy and verify
+```
+
+For an existing Docker volume, migrate inside the mounted root instead:
+
+```sh
+fluxyr migrate-storage --from /var/lib/fluxyr --to /var/lib/fluxyr --apply
+```
+
+The command preserves originals, verifies copied files with SHA-256 and uses
+SQLite's backup API (including committed WAL data) plus an integrity check.
+It checks the old SQLite worker lock and, when `DATABASE_URL` is PostgreSQL, the
+database worker lock. It refuses destination merges and symlink traversal.
+Stop HTTP-only processes too: they do not hold the worker lock.
+
+Then set `FLUXYR_ROOT` to the destination (or remove an old `FLUXYR_ROOT=.` to use
+the new default). An explicit `DATABASE_URL` is not rewritten: if it points at the
+old default SQLite file, remove it to use `state/fluxyr.sqlite3`, or update it
+explicitly. Keep external PostgreSQL configuration and external encryption keys.
+Relative skill folders now resolve from the launch directory; use an absolute
+`FLUXYR_SKILLS_DIR` if yours previously lived under a custom storage root.
+
+Python virtual environments are rebuilt on demand because they contain absolute
+paths. Run `python -m fluxyr.browser install` again for a user-installed browser
+controller; bundled development/Docker controllers remain usable. Disposable old
+profiles and caches are retained at the source but are not copied. Verify the new
+instance before archiving old storage, and never run both copies as separate
+instances against the same external database.
 
 ### Provider endpoints and custom servers
 
@@ -119,7 +190,7 @@ support the selected protocol's streaming and tool calling.
 `workspace/` is disposable execution storage: copies of action source and runtime
 helpers, plus scratch files. Action versions, results, job state and human replies
 are persisted in the database. Artifacts that must survive executions belong in
-`data/`. Dependency environments are cached separately under `.runtime/envs/`.
+`data/`. Dependency environments are cached separately under `cache/envs/`.
 
 At worker startup, after acquiring the database ownership lock and before
 dispatching jobs, Fluxyr removes workspace entries older than
@@ -129,13 +200,13 @@ or its job is nonterminal (including paused/waiting/building). Legacy
 `workspace/tests/` invocations are pruned individually, only when no job is pending.
 Symbolic links are never followed; a symlinked workspace root is not cleaned.
 Mounted subdirectories and entries that cannot be inspected are retained. Cleanup
-does not run on package import, HTTP-only initialization or each request. It leaves
-Workspace retention leaves database history, `data/` and dependency caches untouched.
+also runs daily on the maintenance thread. It does not run on package import,
+HTTP-only initialization or each request. Workspace retention leaves database history, `data/` and dependency caches untouched.
 
 Separately, the embedded worker cleans `data/tmp` every 24 hours, deleting files
 with a modification time older than 30 days and old empty directories. New browser
 captures/downloads live in `data/tmp/browser`. This maintenance runs on its own
-sleeping thread, persists its last run under `.runtime`, and never follows
+sleeping thread, persists its last run under `runtime`, and never follows
 symlinks or scans the operating system's `/tmp`. Other `data/` paths are persistent;
 move files out of `data/tmp` when they must be kept longer.
 
@@ -267,7 +338,7 @@ Python versions and an installed wheel outside the source checkout.
 
 A monitor independent of the dispatch thread supervises the embedded worker.
 After failure it stops dispatch and waits for the previous generation's jobs,
-Python subprocess owners, reactive processor, memory worker and detached model
+Python subprocess owners, continuous routine listeners, reactive processor, memory worker and detached model
 requests to finish. Only then does it reacquire the database/file fence and start
 a generation with a new ownership token. Recovery never automatically replays
 interrupted actions: external effects may already have occurred.
@@ -294,3 +365,5 @@ retry budget. Restarting containers cannot repair an unavailable database.
 
 The deployment must configure its probes to use these endpoints; installing the
 package does not change Kubernetes or hosting-provider probe configuration.
+
+Continuous connections can run as [Worker routines](WORKER_ROUTINES.md), outside the agent execution pool. They emit durable events into the existing per-session queue.

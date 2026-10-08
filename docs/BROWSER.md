@@ -25,7 +25,7 @@ Enable the feature in your application environment and restart Fluxyr:
 FLUXYR_BROWSER_ENABLED=true
 ```
 
-For an installation outside the application's `.runtime/browser-engine`:
+For an installation outside the application's `.fluxyr/cache/browser-engine`:
 
 ```sh
 python -m fluxyr.browser install --directory /opt/fluxyr-browser
@@ -83,7 +83,7 @@ original names inside a per-browser directory. Preview URLs continue to use
 The embedded worker scans `data/tmp` at most once every 24 hours and removes
 regular files whose last modification was more than 30 days ago, plus old empty
 directories. It runs separately from execution dispatch, records its last run
-under `.runtime`, and sleeps between runs. It does not follow symlinks or clean
+under `runtime` inside `FLUXYR_ROOT`, and sleeps between runs. It does not follow symlinks or clean
 the operating system's `/tmp`. Copy artifacts outside `data/tmp` to retain them
 longer; their old temporary preview links expire when the files are removed.
 Existing artifacts under `data/browser` keep their paths and are not included in
@@ -206,7 +206,7 @@ collectors and generic batched plans are not exposed by this integration.
 | Environment variable | Default |
 | --- | --- |
 | `FLUXYR_BROWSER_ENABLED` | `false` |
-| `FLUXYR_BROWSER_RUNTIME` | Bundled development install, or `<root>/.runtime/browser-engine` |
+| `FLUXYR_BROWSER_RUNTIME` | Bundled development install, or `<root>/cache/browser-engine` |
 | `FLUXYR_BROWSER_NODE` | `node` from PATH |
 | `CHROME_PATH` | Chrome/Chromium discovery by public-browser |
 | `FLUXYR_BROWSER_MAX_SESSIONS` | `2` |

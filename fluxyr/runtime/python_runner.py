@@ -89,7 +89,7 @@ class PythonRunner:
         digest = hashlib.sha256(
             json.dumps([version_id, sorted(dependencies)]).encode()
         ).hexdigest()[:24]
-        directory = self.settings.runtime / "envs" / digest
+        directory = self.settings.cache / "envs" / digest
         with lock_for(digest):
             if stop():
                 raise RuntimeError("Dependency setup cancelled")

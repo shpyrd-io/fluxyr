@@ -197,7 +197,7 @@ class Browsers:
         default = (
             bundled
             if (bundled / "node_modules").exists()
-            else engine.settings.runtime / "browser-engine"
+            else engine.settings.cache / "browser-engine"
         )
         self.runtime = Path(os.getenv("FLUXYR_BROWSER_RUNTIME") or default).resolve()
         self.limit = max(1, int(os.getenv("FLUXYR_BROWSER_MAX_SESSIONS", "2")))
@@ -402,6 +402,11 @@ class Browsers:
 def install():
     """Explicit installation only; serving Fluxyr never downloads executable code."""
     import argparse
+    from dotenv import load_dotenv
+
+    from .config import Settings
+
+    load_dotenv(Path.cwd() / ".env", override=False)
 
     parser = argparse.ArgumentParser(
         description="Install the optional Fluxyr browser controller (requires Node 20+ and Chrome)"
@@ -409,10 +414,10 @@ def install():
     parser.add_argument("command", choices=["install"])
     parser.add_argument(
         "--directory",
-        default=os.getenv("FLUXYR_BROWSER_RUNTIME", ".runtime/browser-engine"),
+        default=os.getenv("FLUXYR_BROWSER_RUNTIME") or str(Settings().cache / "browser-engine"),
     )
     args = parser.parse_args()
-    destination = Path(args.directory).resolve()
+    destination = Path(args.directory).expanduser().resolve()
     source = Path(__file__).with_name("browser_runtime")
     destination.mkdir(parents=True, exist_ok=True)
     for name in ("driver.mjs", "passkeys.mjs", "package.json", "pnpm-lock.yaml"):

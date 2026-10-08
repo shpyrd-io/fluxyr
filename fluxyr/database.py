@@ -76,7 +76,7 @@ class Database:
                 for index in model.__table__.indexes:
                     index.create(conn, checkfirst=True)
             version = conn.scalar(select(Version.id))
-            if version not in (None, 1, 2, 3, 4, 5, 6):
+            if version not in (None, 1, 2, 3, 4, 5, 6, 7):
                 raise RuntimeError("Unsupported database schema version")
             if "spec" not in {c["name"] for c in inspect(conn).get_columns("skills")}:
                 conn.execute(
@@ -122,9 +122,9 @@ class Database:
                     )
                 )
             if version is None:
-                conn.execute(insert(Version).values(id=6))
-            elif version != 6:
-                conn.execute(update(Version).where(Version.id == version).values(id=6))
+                conn.execute(insert(Version).values(id=7))
+            elif version != 7:
+                conn.execute(update(Version).where(Version.id == version).values(id=7))
         with self.transaction() as db:
             if not db.get(Session, MAIN_SESSION):
                 db.add(Session(id=MAIN_SESSION, title="Workbench", kind="main"))

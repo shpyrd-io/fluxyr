@@ -138,7 +138,7 @@ def test_invalid_test_inputs_do_not_run_python_or_claim_effect(make_app):
     assert result["type"] == "validation_error" and result["executed"] is False
     with e.db.transaction() as s:
         assert not list(s.scalars(select(Effect)))
-    assert not (e.settings.runtime / "envs").exists()
+    assert not (e.settings.cache / "envs").exists()
 
 
 def test_json_text_payload_preserves_numbers_booleans_and_arrays(make_app):

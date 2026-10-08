@@ -11,6 +11,38 @@ from .reactive import MAX_BYTES
 def register_reactive_routes(routes, engine):
     reactive = engine.reactive
 
+    @routes.get("/api/routines/<rid>/worker")
+    def worker_info(rid):
+        return jsonify(engine.listeners.inspect(rid))
+
+    @routes.patch("/api/routines/<rid>/worker")
+    def worker_config(rid):
+        return jsonify(engine.listeners.configure(rid, request.get_json()))
+
+    @routes.post("/api/routines/<rid>/worker/versions")
+    def create_worker_version(rid):
+        values = request.get_json()
+        return jsonify(
+            engine.listeners.create_version(
+                rid,
+                values.get("source"),
+                values.get("dependencies"),
+                values.get("secrets"),
+            )
+        ), 201
+
+    @routes.get("/api/routines/<rid>/worker/versions/<vid>")
+    def worker_version(rid, vid):
+        return jsonify(engine.listeners.version(rid, vid))
+
+    @routes.post("/api/routines/<rid>/worker/versions/<vid>/test")
+    def test_worker_version(rid, vid):
+        return jsonify(
+            engine.listeners.test(
+                rid, vid, (request.get_json() or {}).get("seconds", 5)
+            )
+        )
+
     @routes.post("/api/webhooks/<token>")
     def receive_webhook(token):
         if request.content_length and request.content_length > MAX_BYTES:

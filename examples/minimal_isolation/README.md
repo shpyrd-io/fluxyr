@@ -24,21 +24,20 @@ cp .env.example .env
 
 Set `DATABASE_URL`, `OPENROUTER_API_KEY` and `VAULT_ENCRYPTION_KEY` in `.env`.
 Generate the vault key once, keep it in deployment secrets and preserve it across
-restarts. If using an existing agent database, use its existing vault key. Only
-`data/` is persisted in this example; the automatically generated fallback key
-under `.runtime/` would otherwise be lost when the container is replaced.
+restarts. If using an existing agent database, use its existing vault key. The whole instance root is persisted in this example. Without an explicit key,
+Fluxyr saves its generated key in `state/vault.key` on that volume.
 
 ```sh
 docker run --rm --name fluxyr-minimal-isolation \
   --cap-drop ALL --security-opt no-new-privileges=true \
   --env-file .env \
   -p 127.0.0.1:8080:8080 \
-  -v fluxyr-minimal-data:/var/lib/fluxyr/data \
+  -v fluxyr-minimal-data:/var/lib/fluxyr \
   fluxyr-minimal-isolation
 ```
 
 PostgreSQL is external. `data/` holds durable files/previews; workspace copies and
-cached dependency environments are disposable container files. Database records
+cached dependency environments live separately in the same instance volume. Database records
 retain source versions, execution history and human-interaction continuation.
 Pass normal deployment variables to the container; actions inherit them.
 

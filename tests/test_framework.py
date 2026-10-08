@@ -212,7 +212,7 @@ def test_missing_required_environment_and_invalid_limits(monkeypatch, tmp_path):
     settings = Settings(root=tmp_path)
     settings.prepare()
     assert settings.database_url == "sqlite:///" + str(
-        tmp_path / ".runtime/fluxyr.sqlite3"
+        tmp_path / "state/fluxyr.sqlite3"
     )
     monkeypatch.setenv("FLUXYR_TOOL_WORKERS", "invalid")
     with pytest.raises(ValueError, match="FLUXYR_TOOL_WORKERS"):

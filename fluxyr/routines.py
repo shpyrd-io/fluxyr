@@ -8,7 +8,7 @@ from croniter import croniter
 from sqlalchemy import select, update
 
 from .database import row_dict
-from .models import Effect, Job, Routine
+from .models import Effect, Job, ListenerConfig, Routine
 from .text import prose_unicode
 
 
@@ -94,15 +94,22 @@ class Routines:
 
     def public(self, row, s):
         result = public_routine(row)
-        if row.trigger == "reactive" and self.reactive:
+        if row.trigger in {"reactive", "worker"} and self.reactive:
             result["reactive"] = self.reactive.describe(s, row.id)
+        if row.trigger == "worker":
+            cfg = s.get(ListenerConfig, row.id)
+            result["worker"] = {
+                "status": cfg.status if cfg else "stopped",
+                "version_id": cfg.version_id if cfg else None,
+                "failures": cfg.failures if cfg else 0,
+            }
         return result
 
     def prepare_create(self, values):
         if (
             values.get("enabled")
             and not values.get("cron")
-            and values.get("trigger") != "reactive"
+            and values.get("trigger") not in {"reactive", "worker"}
         ):
             raise ValueError("Enabled schedules require cron")
         if values.get("cron"):
@@ -136,15 +143,17 @@ class Routines:
             old_trigger = row.trigger
             trigger = values.get(
                 "trigger",
-                "reactive"
-                if old_trigger == "reactive"
+                old_trigger
+                if old_trigger in {"reactive", "worker"}
                 else "scheduled"
                 if values.get("cron", row.cron)
                 else "manual",
             )
-            if trigger not in {"manual", "scheduled", "reactive"}:
-                raise ValueError("Trigger must be manual, scheduled or reactive")
-            if old_trigger == "reactive" and trigger != "reactive":
+            if trigger not in {"manual", "scheduled", "reactive", "worker"}:
+                raise ValueError(
+                    "Trigger must be manual, scheduled, reactive or worker"
+                )
+            if old_trigger in {"reactive", "worker"} and trigger != old_trigger:
                 raise ValueError(
                     "Create another routine to change a reactive trigger; its inbox must keep its identity"
                 )
@@ -165,7 +174,7 @@ class Routines:
                 or not 1 <= row.max_concurrency <= 32
             ):
                 raise ValueError("Max concurrency must be an integer from 1 to 32")
-            if trigger == "reactive":
+            if trigger in {"reactive", "worker"}:
                 row.cron, row.next_run = None, None
                 row.enabled = values.get(
                     "enabled", True if not old_trigger else row.enabled
@@ -198,7 +207,7 @@ class Routines:
         row = s.get(Routine, routine_id)
         if not row:
             raise ValueError("Routine not found")
-        if row.trigger == "reactive":
+        if row.trigger in {"reactive", "worker"}:
             raise ValueError(
                 "Reactive routines run from incoming events; use the inbox to test or replay a receipt"
             )

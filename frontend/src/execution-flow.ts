@@ -67,7 +67,7 @@ export function executionFlow(
   }
   const incomingByJob = new Map(
     ordered
-      .filter((e) => e.type === "webhook_received")
+      .filter((e) => ["webhook_received", "worker_received"].includes(e.type))
       .map((e) => [e.job_id, e]),
   );
   function node(item: TimelineItem): FlowNode | null {
@@ -78,7 +78,8 @@ export function executionFlow(
       return {
         id: item.id,
         jobId: item.jobId,
-        kind: "webhook",
+        kind: incoming.type === "worker_received" ? "worker_event" : "webhook",
+        versionId: incoming.payload.listener_version_id,
         label: `Receipt #${incoming.payload.receipt_id} · ${incoming.payload.session_key}`,
         status: "completed",
         target: item.id,

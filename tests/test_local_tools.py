@@ -95,7 +95,7 @@ def test_vault_key_survives_new_engine_and_not_exposed(make_app):
         from sqlalchemy import select
 
         assert "abcd1234" not in s.scalar(select(VaultItem)).content
-    assert (e.settings.runtime / "vault.key").stat().st_mode & 0o777 == 0o600
+    assert (e.settings.state / "vault.key").stat().st_mode & 0o777 == 0o600
 
 
 def test_files_traversal_edit_conflict_and_previews(make_app, tmp_path):
@@ -105,7 +105,7 @@ def test_files_traversal_edit_conflict_and_previews(make_app, tmp_path):
     with pytest.raises(ValueError):
         e.files.write("doc.txt", "stale", first["etag"])
     with pytest.raises(ValueError):
-        e.files.read("../.runtime/vault.key")
+        e.files.read("../state/vault.key")
     (e.settings.data / "escape").symlink_to(tmp_path)
     with pytest.raises(ValueError):
         e.files.path("escape/outside")

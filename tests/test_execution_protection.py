@@ -156,7 +156,7 @@ def test_sibling_workspace_and_cached_environment_are_protected(confined):
 def test_dependency_setup_cannot_write_data_or_other_environments(confined):
     import sys
 
-    environment = confined.settings.runtime / "envs" / "setup-check"
+    environment = confined.settings.cache / "envs" / "setup-check"
     environment.mkdir(parents=True)
     target = confined.settings.data / "outside-installation"
     with pytest.raises(ValueError, match="Permission denied"):
@@ -208,7 +208,7 @@ def test_pip_installs_declared_dependency_with_confined_setup(
         "job",
     )
     assert result["success"] and result["output"] == "installed by pip", result
-    assert not list(runner.settings.runtime.glob("envs/*/.setup-*"))
+    assert not list(runner.settings.cache.glob("envs/*/.setup-*"))
 
 
 def test_human_wait_and_continuation_preserve_protocol(runner):

@@ -31,7 +31,8 @@ class Settings:
     )
     agent_name: str = env("FLUXYR_AGENT_NAME", "Default Agent")
     database_url: str = env("DATABASE_URL", "")
-    root: Path = env("FLUXYR_ROOT", ".", Path)  # noqa: RUF009 - env returns a dataclass field factory
+    root: Path = env("FLUXYR_ROOT", ".fluxyr", Path)  # noqa: RUF009 - env returns a dataclass field factory
+    project: Path = field(default_factory=Path.cwd)
     skills_dir: str = env("FLUXYR_SKILLS_DIR", "")
     workers: int = env("FLUXYR_WORKERS", "4", int)
     tool_workers: int = env("FLUXYR_TOOL_WORKERS", "6", int)
@@ -61,7 +62,15 @@ class Settings:
 
     @property
     def runtime(self):
-        return self.root / ".runtime"
+        return self.root / "runtime"
+
+    @property
+    def state(self):
+        return self.root / "state"
+
+    @property
+    def cache(self):
+        return self.root / "cache"
 
     @property
     def workspace(self):
@@ -70,12 +79,16 @@ class Settings:
     def prepare(self):
         if self.execution_mode not in ("local", "landlock"):
             raise ValueError("FLUXYR_EXECUTION_MODE must be local or landlock")
-        self.root = self.root.resolve()
+        from .storage import check_layout, mark_layout
+
+        self.project = self.project.resolve()
+        self.root = self.root.expanduser().resolve()
+        check_layout(self.root, self.project)
         if not self.database_url:
             from sqlalchemy.engine import URL
 
             self.database_url = URL.create(
-                "sqlite", database=str(self.runtime / "fluxyr.sqlite3")
+                "sqlite", database=str(self.state / "fluxyr.sqlite3")
             ).render_as_string(hide_password=False)
         limits = {
             "workers": (1, 32),
@@ -135,9 +148,12 @@ class Settings:
                 "FLUXYR_THINKING_BUDGET must be >=1024 and below FLUXYR_MAX_TOKENS"
             )
         self.root = self.root.resolve()
-        for path in (self.data, self.runtime, self.workspace):
+        for path in (self.data, self.state, self.cache, self.runtime, self.workspace):
             path.mkdir(parents=True, exist_ok=True)
+        self.state.chmod(0o700)
+        self.cache.chmod(0o700)
         self.runtime.chmod(0o700)
+        mark_layout(self.root)
         if self.execution_mode == "landlock":
             from .runtime.landlock import validate_support
 

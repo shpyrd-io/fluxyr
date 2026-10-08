@@ -28,6 +28,7 @@ import {
 import { Actions } from "./resources";
 import { VaultForm, vaultKinds as kinds } from "./vault-form";
 import { CronEditor } from "./cron-editor";
+import { WorkerRoutine } from "./worker-routine";
 import { ReactiveRoutine } from "./reactive-routine";
 import { describeCron } from "./cron";
 
@@ -117,12 +118,11 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
           trigger: values.trigger,
           cron: values.cron || null,
           timezone: values.timezone,
-          enabled:
-            values.trigger === "reactive"
-              ? selected
-                ? values.enabled
-                : true
-              : values.enabled,
+          enabled: ["reactive", "worker"].includes(values.trigger)
+            ? selected
+              ? values.enabled
+              : true
+            : values.enabled,
           overlap: values.overlap,
           max_concurrency: values.max_concurrency,
         };
@@ -245,12 +245,20 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                     </>
                   ) : page === "Routines" ? (
                     <>
-                      {item.trigger === "reactive" ? (
+                      {item.trigger === "worker" && (
+                        <small>
+                          Worker · {item.worker?.status || "stopped"}
+                        </small>
+                      )}
+                      {["reactive", "worker"].includes(item.trigger) ? (
                         <Badge
                           variant={
-                            item.reactive?.mode === "active"
-                              ? "ACTIVE"
-                              : "OFFLINE"
+                            item.worker?.status === "failed" ||
+                            item.worker?.status === "backoff"
+                              ? "CRITICAL"
+                              : item.reactive?.mode === "active"
+                                ? "ACTIVE"
+                                : "OFFLINE"
                           }
                         >
                           {item.reactive?.mode === "collecting"
@@ -274,24 +282,25 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                   )}
                 </div>
                 <div className="catalogue-controls">
-                  {page === "Routines" && item.trigger !== "reactive" && (
-                    <Button
-                      aria-label={`Run ${item.name}`}
-                      disabled={busy}
-                      onClick={() =>
-                        action(async () => {
-                          const job = await api(
-                            path + "/" + item.id + "/run",
-                            "POST",
-                            {},
-                          );
-                          open(job.session_id);
-                        })
-                      }
-                    >
-                      <Play size={14} />
-                    </Button>
-                  )}
+                  {page === "Routines" &&
+                    !["reactive", "worker"].includes(item.trigger) && (
+                      <Button
+                        aria-label={`Run ${item.name}`}
+                        disabled={busy}
+                        onClick={() =>
+                          action(async () => {
+                            const job = await api(
+                              path + "/" + item.id + "/run",
+                              "POST",
+                              {},
+                            );
+                            open(job.session_id);
+                          })
+                        }
+                      >
+                        <Play size={14} />
+                      </Button>
+                    )}
                   <Button
                     disabled={item.readonly}
                     title={
@@ -386,8 +395,8 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                             ? "Skip scheduled occurrences while busy."
                             : "One execution at a time; excess runs queue."}
                       </p>
-                      {item.trigger === "reactive" ? (
-                        <ReactiveRoutine
+                      {["reactive", "worker"].includes(item.trigger) ? (
+                        <WorkerOrReactive
                           key={item.id}
                           routine={item}
                           reload={load}
@@ -604,12 +613,17 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                       Trigger
                       <SelectField
                         value={values.trigger || "manual"}
-                        disabled={selected?.trigger === "reactive"}
+                        disabled={["reactive", "worker"].includes(
+                          selected?.trigger,
+                        )}
                         onValueChange={(value) => {
                           set("trigger", value);
                           setScheduleValid(true);
                         }}
                       >
+                        <SelectOption value="worker">
+                          Worker · continuous
+                        </SelectOption>
                         <SelectOption value="manual">Manual</SelectOption>
                         <SelectOption value="scheduled">Scheduled</SelectOption>
                         <SelectOption value="reactive">
@@ -617,7 +631,12 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
                         </SelectOption>
                       </SelectField>
                     </Label>
-                    {values.trigger === "reactive" ? (
+                    {values.trigger === "worker" ? (
+                      <p className="muted">
+                        Save the routine, then add and test its Python listener.
+                        Collection does not create agent executions.
+                      </p>
+                    ) : values.trigger === "reactive" ? (
                       <p className="muted">
                         The routine starts collecting examples without a
                         normalizer. Save to get its webhook URL and inbox.
@@ -790,5 +809,18 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function WorkerOrReactive(props: {
+  routine: RecordData;
+  reload: () => Promise<any>;
+  open: (id: string) => void;
+}) {
+  return (
+    <>
+      {props.routine.trigger === "worker" && <WorkerRoutine {...props} />}
+      <ReactiveRoutine {...props} />
+    </>
   );
 }

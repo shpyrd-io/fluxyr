@@ -134,7 +134,7 @@ def test_schema_five_migrates_existing_routines_idempotently(make_app):
     assert saved["id"] == r["id"] and saved["max_concurrency"] == 1
     assert saved["next_run"] == r["next_run"] and saved["overlap"] == "queue"
     with e.db.transaction() as s:
-        assert s.scalar(select(Version.id)) == 6
+        assert s.scalar(select(Version.id)) == 7
 
 
 def test_global_workers_bound_parallel_routine(make_app):

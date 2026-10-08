@@ -33,6 +33,9 @@ export function ReactiveRoutine({
   const root = `/routines/${routine.id}`;
   const config = routine.reactive;
   const [mode, setMode] = useState(config.mode);
+  useEffect(() => {
+    setMode(config.mode);
+  }, [config.mode]);
   const [version, setVersion] = useState(config.normalizer_id || "none");
   const [versions, setVersions] = useState<RecordData[]>([]);
   const [receipts, setReceipts] = useState<RecordData[]>([]);
@@ -74,24 +77,30 @@ export function ReactiveRoutine({
   const url = new URL(config.webhook_path, window.location.origin).href;
   return (
     <section className="reactive-inbox">
-      <Label>
-        POST webhook URL
-        <Input value={url} readOnly onFocus={(e) => e.target.select()} />
-      </Label>
+      {routine.trigger !== "worker" && (
+        <Label>
+          POST webhook URL
+          <Input value={url} readOnly onFocus={(e) => e.target.select()} />
+        </Label>
+      )}
       <p className="muted">
         Collect examples first. Testing does not create conversations.
         Activating processes new events only; old samples require explicit
         replay.
       </p>
       <div className="reactive-settings">
-        <Label>
-          Mode
-          <SelectField value={mode} onValueChange={setMode}>
-            <SelectOption value="collecting">Collecting examples</SelectOption>
-            <SelectOption value="active">Active</SelectOption>
-            <SelectOption value="disabled">Disabled</SelectOption>
-          </SelectField>
-        </Label>
+        {routine.trigger !== "worker" && (
+          <Label>
+            Mode
+            <SelectField value={mode} onValueChange={setMode}>
+              <SelectOption value="collecting">
+                Collecting examples
+              </SelectOption>
+              <SelectOption value="active">Active</SelectOption>
+              <SelectOption value="disabled">Disabled</SelectOption>
+            </SelectField>
+          </Label>
+        )}
         <Label>
           Normalizer version
           <SelectField
@@ -110,36 +119,39 @@ export function ReactiveRoutine({
           </SelectField>
         </Label>
       </div>
-      <details>
-        <summary>Webhook authentication</summary>
-        <p>
-          The URL token authorizes delivery.{" "}
-          {config.signature_enabled
-            ? "HMAC verification is also enabled."
-            : "Optional HMAC verification is off."}{" "}
-          Keep this URL private.
-        </p>
-        <Label>
-          New HMAC signing secret
-          <Input
-            type="password"
-            autoComplete="new-password"
-            value={signingSecret}
-            onChange={(e) => setSigningSecret(e.target.value)}
-            placeholder="At least 16 characters; leave blank to keep current setting"
-          />
-        </Label>
-        <small>
-          Send X-Webhook-Signature with the hex HMAC-SHA256 of the exact request
-          body. Configure provider-specific signature formats in a custom route.
-        </small>
-      </details>
+      {routine.trigger !== "worker" && (
+        <details>
+          <summary>Webhook authentication</summary>
+          <p>
+            The URL token authorizes delivery.{" "}
+            {config.signature_enabled
+              ? "HMAC verification is also enabled."
+              : "Optional HMAC verification is off."}{" "}
+            Keep this URL private.
+          </p>
+          <Label>
+            New HMAC signing secret
+            <Input
+              type="password"
+              autoComplete="new-password"
+              value={signingSecret}
+              onChange={(e) => setSigningSecret(e.target.value)}
+              placeholder="At least 16 characters; leave blank to keep current setting"
+            />
+          </Label>
+          <small>
+            Send X-Webhook-Signature with the hex HMAC-SHA256 of the exact
+            request body. Configure provider-specific signature formats in a
+            custom route.
+          </small>
+        </details>
+      )}
       <Button
         disabled={busy}
         onClick={() =>
           act(async () => {
             await api(root + "/reactive", "PATCH", {
-              mode,
+              ...(routine.trigger === "worker" ? {} : { mode }),
               normalizer_id: version === "none" ? null : version,
               ...(signingSecret ? { signing_secret: signingSecret } : {}),
             });
@@ -149,7 +161,9 @@ export function ReactiveRoutine({
           })
         }
       >
-        Save reactive settings
+        {routine.trigger === "worker"
+          ? "Save normalizer selection"
+          : "Save reactive settings"}
       </Button>
       <Separator />
       <div className="actions">
@@ -176,8 +190,9 @@ export function ReactiveRoutine({
       {!loaded && <p className="muted">Loading received events…</p>}
       {loaded && !receipts.length && (
         <p className="muted">
-          Waiting for the first POST. Send JSON, text or URL-encoded form fields
-          to the webhook URL above.
+          {routine.trigger === "worker"
+            ? "Waiting for listener events. Start collection from the controls above."
+            : "Waiting for the first POST. Send JSON, text or URL-encoded form fields to the webhook URL above."}
         </p>
       )}
       <div className="reactive-receipts">

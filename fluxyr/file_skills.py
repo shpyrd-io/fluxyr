@@ -8,9 +8,11 @@ import yaml
 def load_file_skills(settings):
     if not settings.skills_dir:
         return []
-    root = Path(settings.skills_dir)
+    root = Path(settings.skills_dir).expanduser()
     root = (
-        (settings.root / root).resolve() if not root.is_absolute() else root.resolve()
+        (settings.project / root).resolve()
+        if not root.is_absolute()
+        else root.resolve()
     )
     if not root.is_dir():
         raise ValueError(f"FLUXYR_SKILLS_DIR is not a directory: {root}")

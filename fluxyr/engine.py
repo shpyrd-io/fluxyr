@@ -23,6 +23,7 @@ from .models import Event, Job, Message, Session
 from .prompts import load_prompt
 from .providers import make_adapter, response_text
 from .reactive import ReactiveRoutines
+from .listeners import Listeners
 from .routines import Routines, action_outcome
 from .runtime.effects import Effects
 from .runtime.human_protocol import response_for
@@ -59,12 +60,13 @@ class Engine:
         self.files = Files(settings.data)
         self.workspace_tools = WorkspaceTools(settings)
         self.runner = PythonRunner(settings, self.vault)
-        self.tmp_maintenance = TmpMaintenance(settings)
+        self.tmp_maintenance = TmpMaintenance(settings, self.db)
         self.skills = Skills(self.db, self.runner, file_skills)
         self.native_tools = {}
         self.app = None
         self.store.file_skills = self.skills.file_skills
         self.reactive = ReactiveRoutines(self)
+        self.listeners = Listeners(self)
         self.routines = Routines(self.db, self.store, self.reactive)
         self.effects = Effects(self.db)
         self.builds = Builds(self)
@@ -153,6 +155,7 @@ class Engine:
         )
         self.reactive.future = None
         self.reactive.start()
+        self.listeners.start()
         self.memory_queue.start()
         self.tmp_maintenance.start(self.stopping)
         self.thread = threading.Thread(
@@ -184,6 +187,7 @@ class Engine:
         self.stopping.set()
         if self.thread:
             self.thread.join()
+        self.listeners.stop()
         self.reactive.stop()
         self.tmp_maintenance.join()
         if self.pool:
@@ -488,7 +492,11 @@ class Engine:
                             else decision.get("result"),
                             continuation=continuation_for(entry),
                         )
-                    elif entry["name"] in ("manage_vault_credential", "browser_request_input", "browser_register_passkey"):
+                    elif entry["name"] in (
+                        "manage_vault_credential",
+                        "browser_request_input",
+                        "browser_register_passkey",
+                    ):
                         # Validated server-side by the private Vault form endpoint.
                         result = {**decision["result"], "status": "completed"}
                         mode = "continue"

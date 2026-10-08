@@ -29,6 +29,7 @@ import type { RecordData } from "./api";
 import { UsageBadge } from "./usage";
 const labels: Record<string, string> = {
   webhook: "Webhook event",
+  worker_event: "Worker event",
   user: "User input",
   assistant: "Agent answer",
   reasoning: "Reasoning",
@@ -41,6 +42,7 @@ const labels: Record<string, string> = {
 };
 const icons: Record<string, typeof Wrench> = {
   webhook: GitBranch,
+  worker_event: GitBranch,
   user: UserRound,
   assistant: MessageSquare,
   reasoning: BrainCircuit,

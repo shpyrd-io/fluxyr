@@ -35,7 +35,7 @@ class Vault:
     def __init__(self, db):
         self.db = db
         configured = os.getenv("VAULT_ENCRYPTION_KEY")
-        path = db.settings.runtime / "vault.key"
+        path = db.settings.state / "vault.key"
         if configured:
             self.key = configured.encode()
         else:

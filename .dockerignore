@@ -17,3 +17,7 @@ test-results
 dist
 build
 .ruff_cache
+
+# Instance storage (database, Vault key, files and caches)
+.fluxyr/
+.fluxyr-migration-*/

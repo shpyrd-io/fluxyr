@@ -45,7 +45,7 @@ def test_prunes_old_orphans_files_and_individual_tests_only(make_app):
     data = engine.settings.data / "keep.txt"
     data.write_text("persistent")
     age(data)
-    cache = work(engine.settings.runtime, "envs/keep")
+    cache = work(engine.settings.cache, "envs/keep")
     result = purge_workspace(engine.settings, engine.db, now=NOW)
     assert result["removed"] == 3
     assert not old.exists() and not old_test.exists() and not loose.exists()

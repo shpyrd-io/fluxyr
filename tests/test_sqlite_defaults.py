@@ -41,11 +41,11 @@ def test_only_model_and_openrouter_key_are_required(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     settings = Settings()
     settings.prepare()
-    assert settings.root == tmp_path
+    assert settings.root == tmp_path / ".fluxyr"
     assert settings.provider == "openrouter"
     assert settings.port == 5050
     assert settings.database_url == "sqlite:///" + str(
-        tmp_path / ".runtime/fluxyr.sqlite3"
+        tmp_path / ".fluxyr/state/fluxyr.sqlite3"
     )
     with pytest.raises(ValueError, match="FLUXYR_MODEL"):
         settings.validate_credentials()
@@ -173,10 +173,10 @@ def test_runtime_root_and_dotenv_follow_launch_directory(monkeypatch, tmp_path):
     )
     try:
         app.initialize()
-        assert app.engine.settings.root == launch
+        assert app.engine.settings.root == launch / ".fluxyr"
         assert app.engine.settings.model == "chosen-model"
-        assert (launch / ".runtime/fluxyr.sqlite3").exists()
-        assert not (code / ".runtime").exists()
+        assert (launch / ".fluxyr/state/fluxyr.sqlite3").exists()
+        assert not (code / ".fluxyr").exists()
     finally:
         app.close()
 

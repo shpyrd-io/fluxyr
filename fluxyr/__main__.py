@@ -11,7 +11,15 @@ from .framework import Fluxyr
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Fluxyr Agent framework")
+    if sys.argv[1:2] == ["migrate-storage"]:
+        from .storage import migration_cli
+
+        migration_cli(sys.argv[2:])
+        return
+    parser = argparse.ArgumentParser(
+        description="Fluxyr Agent framework",
+        epilog="Legacy storage: fluxyr migrate-storage --help",
+    )
     parser.add_argument("--version", action="version", version=f"Fluxyr {__version__}")
     parser.add_argument(
         "--app",
@@ -55,11 +63,8 @@ def main():
 
         project = Path.cwd()
         values = {**dotenv_values(project / ".env"), **os.environ}
-        data_root = Path(values.get("FLUXYR_ROOT") or project)
-        if not data_root.is_absolute():
-            data_root = project / data_root
         folder = values.get("FLUXYR_SKILLS_DIR")
-        skill_root = data_root / folder if folder else None
+        skill_root = project / Path(folder).expanduser() if folder else None
         extras = [str(project / ".env")]
         if skill_root:
             extras += [str(p) for p in skill_root.rglob("*.md")]

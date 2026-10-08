@@ -81,8 +81,9 @@ def purge_tmp(settings, *, now=None, stopped=lambda: False):
 class TmpMaintenance:
     """One cancellable maintenance thread owned/drained with the worker fence."""
 
-    def __init__(self, settings):
+    def __init__(self, settings, db=None):
         self.settings = settings
+        self.db = db
         self.thread = None
         self.next_run = None
         self.marker = settings.runtime / "tmp-cleanup-at"
@@ -111,6 +112,10 @@ class TmpMaintenance:
         while not stopping.wait(max(0, self.next_run - time.time())):
             try:
                 purge_tmp(self.settings, stopped=stopping.is_set)
+                if self.db is not None and not stopping.is_set():
+                    from .workspace_cleanup import purge_workspace
+
+                    purge_workspace(self.settings, self.db)
             except Exception:
                 # Maintenance failure must not restart healthy execution workers.
                 log.exception("Temporary cleanup could not finish")

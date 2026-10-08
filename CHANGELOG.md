@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.9.6 — 2026-10-08
+
+- Add continuous Worker routine triggers with supervised Python listeners, private Vault access, durable event/checkpoint acknowledgements, collection and smoke tests, bounded diagnostics, and reuse of reactive session routing and concurrency. Add UI/API/native tools and examples for uptime and AgentMail. Upgrade database schema to 7.
+
+- Consolidate instance storage under `.fluxyr` by default (override with `FLUXYR_ROOT`), separating persistent SQLite/Vault state, Files, caches, runtime scratch and execution workspaces. Add an explicit verified migration command and refuse silent initialization over detected legacy storage.
+- Resolve relative skill folders from the launch directory, independently of storage. Run job-aware workspace retention daily as well as at startup.
 
 ## 0.9.5 — 2026-10-08
 

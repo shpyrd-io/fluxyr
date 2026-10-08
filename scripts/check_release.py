@@ -29,6 +29,7 @@ def check_names(names):
             "node_modules",
             "workspace",
             ".runtime",
+            ".fluxyr",
             "data",
         }.intersection(parts), name
         assert not any(p.startswith(".env") and p != ".env.example" for p in parts), (

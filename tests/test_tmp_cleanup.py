@@ -195,3 +195,27 @@ def test_download_directories_are_temporary_base62(make_app, monkeypatch):
         e.browsers._get("session")
     assert destinations[0].parent == e.settings.data / "tmp/browser"
     assert re.fullmatch(r"[0-9A-Za-z]{22}", destinations[0].name)
+
+
+def test_daily_maintenance_cleans_workspace_but_keeps_pending_jobs(make_app):
+    from test_workspace_cleanup import work
+
+    _, engine, _ = make_app()
+    orphan = work(engine.settings.workspace, "old-orphan")
+    queued = engine.store.enqueue("Preserve this workspace")
+    protected = work(engine.settings.workspace, queued["id"])
+
+    class Once:
+        calls = 0
+
+        def wait(self, seconds):
+            self.calls += 1
+            return self.calls > 1
+
+        def is_set(self):
+            return False
+
+    engine.tmp_maintenance.next_run = time.time()
+    engine.tmp_maintenance._run(Once())
+    assert not orphan.exists()
+    assert protected.exists()

@@ -87,13 +87,17 @@ are required.
 | `FLUXYR_PROVIDER` | `openrouter`; also supports `openai`, `anthropic` and `custom` |
 | `PORT` | `5050` |
 | `FLUXYR_AGENT_NAME` | `Default Agent` |
-| `DATABASE_URL` | SQLite at `.runtime/fluxyr.sqlite3`; PostgreSQL is optional |
-| `FLUXYR_ROOT` | Current working directory; optionally relocate runtime data |
+| `DATABASE_URL` | SQLite at `.fluxyr/state/fluxyr.sqlite3`; PostgreSQL is optional |
+| `FLUXYR_ROOT` | `.fluxyr` in the launch directory; override to mount one instance volume |
 | `FLUXYR_SKILLS_DIR` | Optional folder of Markdown skills |
 
 With another provider, supply its key: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` or
 `CUSTOM_API_KEY`. See the [configuration reference](docs/FRAMEWORK.md#configuration)
 for provider endpoints and other options.
+
+All local instance storage lives under `.fluxyr/`. Set `FLUXYR_ROOT` to mount it
+as one volume. Existing installations use the explicit
+[storage migration](docs/FRAMEWORK.md#migrating-an-existing-installation).
 
 ## Skills and integrations
 
@@ -108,6 +112,7 @@ request human input and schedule routines.
 - [Native tools reference](docs/TOOLS.md)
 - [Headless browser, private input, OTP and passkeys](docs/BROWSER.md)
 - [Reactive routines and webhooks](docs/REACTIVE_ROUTINES.md)
+- [Continuous worker routines](docs/WORKER_ROUTINES.md)
 - [Python actions and credentials](docs/ACTIONS.md)
 - [Human interaction](docs/HUMAN_INTERACTION.md)
 - [Approval API and optional Bearer key](docs/APPROVALS_API.md)

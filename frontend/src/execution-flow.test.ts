@@ -194,3 +194,12 @@ test("reactive execution input is identified by its persisted webhook receipt", 
   assert.equal(flow[0].kind, "webhook");
   assert.equal(flow[0].label, "Receipt #42 · customer-1");
 });
+
+test("continuous worker input identifies its receipt and pinned listener code", () => {
+  const flow = executionFlow(
+    [{id: "input", job_id: "job", role: "user", content: "Incoming event", created_at: 1}],
+    [e(2, "worker_received", {receipt_id: 7, session_key: "inbox:thread", listener_version_id: "listener-v1"})],
+  );
+  assert.equal(flow[0].kind, "worker_event");
+  assert.equal(flow[0].versionId, "listener-v1");
+});

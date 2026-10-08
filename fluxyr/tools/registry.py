@@ -128,7 +128,22 @@ class Registry:
             "next_offset": offset + 12000 if offset + 12000 < len(encoded) else None,
         }
 
-    def create_normalizer(self, args):
+    def worker_slice(self, args):
+        listeners = self.engine.listeners
+        value = (
+            listeners.version(args["routine_id"], args["version_id"])
+            if args.get("version_id")
+            else listeners.inspect(args["routine_id"])
+        )
+        encoded = json.dumps(value, ensure_ascii=False)
+        offset = args.get("offset", 0)
+        return {
+            "content": encoded[offset : offset + 12000],
+            "total_chars": len(encoded),
+            "next_offset": offset + 12000 if offset + 12000 < len(encoded) else None,
+        }
+
+    def create_normalizer(self, args, listener=False):
         if bool(args.get("source")) == bool(args.get("source_path")):
             raise ValueError("Supply exactly one of source or source_path")
         source = args.get("source")
@@ -138,6 +153,14 @@ class Registry:
             if not path.is_relative_to(root) or path.stat().st_size > 262144:
                 raise ValueError("Source must be inside data_dir and at most 256 KiB")
             source = path.read_text(encoding="utf-8")
+        if listener:
+            result = self.engine.listeners.create_version(
+                args["routine_id"],
+                source,
+                args.get("dependencies"),
+                args.get("secrets"),
+            )
+            return {k: v for k, v in result.items() if k != "source"}
         return self.engine.reactive.create_version(
             args["routine_id"], source, args.get("dependencies")
         )
@@ -553,20 +576,38 @@ class Registry:
                 ["origin"],
                 lambda a, *_: request_input(e, self.job, a, self.stop),
             )
-            passkey_fields = {k: target_fields[k] for k in ("origin", "ref", "selector", "vault_item_id")}
+            passkey_fields = {
+                k: target_fields[k]
+                for k in ("origin", "ref", "selector", "vault_item_id")
+            }
             for key in ("ref", "selector"):
-                passkey_fields[key] = {"type": "string", "description": "Exact button that triggers WebAuthn, from view_page. Supply ref OR selector."}
+                passkey_fields[key] = {
+                    "type": "string",
+                    "description": "Exact button that triggers WebAuthn, from view_page. Supply ref OR selector.",
+                }
             add(
                 "browser_register_passkey",
                 "Pause for human confirmation to create a passkey inside this browser and encrypt it directly in Vault. First sign in and navigate to the site's Add passkey screen. Supply the final registration button ref OR selector and exact HTTPS origin. The human names and confirms the passkey before any credential is created. No key export/import or values in context. If a save failed with recoverable=true, pass its vault_item_id and origin (no button) to request saving the existing key without registering again. Inspect the site afterwards: saving in Vault alone does not confirm server acceptance.",
-                {**passkey_fields, "suggested_name": {"type": "string", "maxLength": 200}},
-                ["origin"], lambda a, *_: request_registration(e, self.job, a, self.stop),
+                {
+                    **passkey_fields,
+                    "suggested_name": {"type": "string", "maxLength": 200},
+                },
+                ["origin"],
+                lambda a, *_: request_registration(e, self.job, a, self.stop),
             )
             add(
                 "browser_use_passkey",
                 "Authenticate using a saved Vault passkey, restored privately into a one-shot WebAuthn authenticator. Supply exact saved origin and the button that starts passkey login (ref OR selector). No credential values enter context. Works after browser restart; verify the resulting page to confirm login. Some sites require hardware-backed authenticators and are unsupported.",
-                passkey_fields, ["origin", "vault_item_id"],
-                lambda a, *_: e.browsers.passkeys.authenticate(self.job["session_id"], a["vault_item_id"], a["origin"], a.get("ref"), a.get("selector"), self.stop),
+                passkey_fields,
+                ["origin", "vault_item_id"],
+                lambda a, *_: e.browsers.passkeys.authenticate(
+                    self.job["session_id"],
+                    a["vault_item_id"],
+                    a["origin"],
+                    a.get("ref"),
+                    a.get("selector"),
+                    self.stop,
+                ),
                 effect=True,
             )
 
@@ -575,7 +616,10 @@ class Registry:
             "Open an embedded private Vault form and wait for the user to save or cancel. Use create when a required credential is missing, edit for an existing ID from vault_list. Prefill public OAuth settings (token_url, authorization_url, scope, token_auth_method) in oauth_config from the provider documentation. Never pass credential values in chat or ask_human. Returns only the saved Vault ID/name. Declare that name in action secrets and use secret(name) at runtime.",
             {
                 "action": {"type": "string", "enum": ["create", "edit"]},
-                "vault_item_type": {"type": "string", "enum": [t for t in TYPES if t != "passkey"]},
+                "vault_item_type": {
+                    "type": "string",
+                    "enum": [t for t in TYPES if t != "passkey"],
+                },
                 "suggested_name": {"type": "string", "maxLength": 200},
                 "vault_item_id": S,
                 "oauth_config": OAUTH_PREFILL_SCHEMA,
@@ -662,6 +706,61 @@ class Registry:
             self.preview,
         )
         add(
+            "create_routine_worker",
+            "Save a continuous Python listener version for a worker routine. Define run(ctx); ctx.ready() after connecting; ctx.emit(session_key=...,event_id=...,payload=...,checkpoint=...) persists before acknowledging. ctx.receive(envelope,event_id=...) collects raw input or uses the normalizer. ctx.checkpoint restores the cursor; ctx.secret(name) resolves declared Vault names privately. Use interruptible ctx.wait(seconds), check ctx.stopping, and finite network timeouts. No LLM or human waits in listeners. Source_path is relative to data_dir. Test before activation.",
+            {
+                "routine_id": S,
+                "source": S,
+                "source_path": S,
+                "dependencies": A,
+                "secrets": A,
+            },
+            ["routine_id"],
+            lambda a, *_: self.create_normalizer(a, listener=True),
+            effect=True,
+        )
+        add(
+            "inspect_routine_worker",
+            "Read listener configuration, latest bounded run logs and version metadata. Supply version_id to inspect source. Results are paginated JSON-text slices with a character offset.",
+            {
+                "routine_id": S,
+                "version_id": S,
+                "offset": {"type": "integer", "minimum": 0},
+            },
+            ["routine_id"],
+            lambda a, *_: self.worker_slice(a),
+            True,
+        )
+        add(
+            "test_routine_worker",
+            "Smoke-test a listener for 1–30 seconds after environment setup. Stop the listener first. Network/Vault operations are real; emitted events become collected receipts only, no agent jobs and no live checkpoint changes. Requires ctx.ready() and a running loop until the test ends. Inspect samples before activating.",
+            {
+                "routine_id": S,
+                "version_id": S,
+                "seconds": {"type": "integer", "minimum": 1, "maximum": 30},
+            },
+            ["routine_id", "version_id"],
+            lambda a, *_: e.listeners.test(
+                a["routine_id"], a["version_id"], a.get("seconds", 5)
+            ),
+            effect=True,
+        )
+        add(
+            "configure_routine_worker",
+            "Select a listener version and mode: collecting stores samples, active dispatches new events, disabled stops it. Activation requires a passed listener test. restart=true clears retry failures and reconnects; automatic retries stop after five consecutive short failures. Old samples require explicit replay. One listener per routine; overlap/max_concurrency limits its agent jobs separately.",
+            {
+                "routine_id": S,
+                "version_id": S,
+                "mode": {"enum": ["collecting", "active", "disabled"]},
+                "restart": B,
+            },
+            ["routine_id"],
+            lambda a, *_: e.listeners.configure(
+                a["routine_id"], {k: v for k, v in a.items() if k != "routine_id"}
+            ),
+            effect=True,
+        )
+        add(
             "list_routines",
             "List routines, schedules and reactive webhook paths, modes and receipt counts.",
             {},
@@ -671,9 +770,9 @@ class Registry:
         )
         add(
             "create_routine",
-            "Create a manual, scheduled or reactive routine using implemented actions. Reactive routines start collecting webhook examples without sessions or a normalizer. Success criteria belong in the action spec and Python code, never a separate routine expectation. overlap=queue runs one at a time; skip discards scheduled occurrences while busy; parallel runs up to max_concurrency (1–32, default 1), queuing excess. The global worker limit and per-session ordering still apply. Human waits release processing slots.",
+            "Create a manual, scheduled, reactive or worker routine using implemented actions. Reactive routines collect webhook examples. Worker routines listen continuously using create_routine_worker; they start without code and never consume an agent slot while idle. Both can collect without sessions or a normalizer. Success criteria belong in the action spec and Python code, never a separate routine expectation. overlap=queue runs one at a time; skip discards scheduled occurrences while busy; parallel runs up to max_concurrency (1–32, default 1), queuing excess. The global worker limit and per-session ordering still apply. Human waits release processing slots.",
             {
-                "trigger": {"enum": ["manual", "scheduled", "reactive"]},
+                "trigger": {"enum": ["manual", "scheduled", "reactive", "worker"]},
                 "name": S,
                 "prompt": S,
                 "cron": S,

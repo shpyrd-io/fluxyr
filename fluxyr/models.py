@@ -220,6 +220,48 @@ class ReactiveConfig(Base):
     normalizer_id: Mapped[str | None] = mapped_column(String(36))
 
 
+class ListenerVersion(Base):
+    __tablename__ = "listener_versions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    routine_id: Mapped[str] = mapped_column(
+        ForeignKey("routines.id", ondelete="CASCADE"), index=True
+    )
+    source: Mapped[str] = mapped_column(Text)
+    dependencies: Mapped[list] = mapped_column(JSON, default=list)
+    secrets: Mapped[list] = mapped_column(JSON, default=list)
+    tested_at: Mapped[float | None] = mapped_column(Float)
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+
+
+class ListenerConfig(Base):
+    __tablename__ = "listener_configs"
+    routine_id: Mapped[str] = mapped_column(
+        ForeignKey("routines.id", ondelete="CASCADE"), primary_key=True
+    )
+    version_id: Mapped[str | None] = mapped_column(String(36))
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    checkpoint: Mapped[dict | None] = mapped_column(JSON)
+    failures: Mapped[int] = mapped_column(Integer, default=0)
+    retry_at: Mapped[float] = mapped_column(Float, default=0)
+    status: Mapped[str] = mapped_column(String(24), default="stopped")
+
+
+class ListenerRun(Base):
+    __tablename__ = "listener_runs"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    routine_id: Mapped[str] = mapped_column(
+        ForeignKey("routines.id", ondelete="CASCADE"), index=True
+    )
+    version_id: Mapped[str] = mapped_column(String(36))
+    test: Mapped[bool] = mapped_column(Boolean, default=False)
+    status: Mapped[str] = mapped_column(String(24), default="starting")
+    logs: Mapped[str] = mapped_column(Text, default="")
+    error: Mapped[str | None] = mapped_column(Text)
+    events: Mapped[int] = mapped_column(Integer, default=0)
+    started_at: Mapped[float] = mapped_column(Float, default=time.time)
+    finished_at: Mapped[float | None] = mapped_column(Float)
+
+
 class NormalizerVersion(Base):
     __tablename__ = "normalizer_versions"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
