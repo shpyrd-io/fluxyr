@@ -58,7 +58,11 @@ export function ExecutionFlowPanel({
   jobs,
   onJump,
   timeline,
+  hasOlder,
+  loadOlder,
 }: {
+  hasOlder: boolean;
+  loadOlder: () => Promise<void>;
   timeline: TimelineItem[];
   messages: RecordData[];
   events: RecordData[];
@@ -77,7 +81,10 @@ export function ExecutionFlowPanel({
     () => (filter === "all" ? all : all.filter((n) => n.jobId === filter)),
     [all, filter],
   );
-  const history = useHistoryWindow(nodes, scroll, () => following);
+  const history = useHistoryWindow(nodes, scroll, () => following, {
+    hasOlder,
+    loadOlder,
+  });
   useEffect(() => {
     if (following) history.goToLatest();
   }, [following, history.goToLatest]);
@@ -155,7 +162,7 @@ export function ExecutionFlowPanel({
           );
         }}
       >
-        {history.hasOlder && (
+        {(history.hasOlder || hasOlder) && (
           <div className="history-edge">Scroll up for earlier events</div>
         )}
         {!nodes.length ? (

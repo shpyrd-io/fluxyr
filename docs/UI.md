@@ -227,6 +227,40 @@ The workbench's `01 > Agent console` session heading uses the vendored Scificn B
 
 The conversation and execution sequence start with the latest 30 blocks. Scrolling upward within 160 px of the loaded top prepends another 30; scrolling toward the loaded bottom restores newer blocks when needed. The opposite edge is evicted in whole pages to keep at most 90 blocks mounted. The visible row and its pixel offset are retained across page changes. Ordinary scrolling within a page does not mount/unmount rows or restart loaders. Completed build progress is cached (up to 100 jobs) so returning to it does not restart polling.
 
-Graph links can bring an unmounted message into the window; Latest returns to the most recent page. Pending human/Vault forms remain mounted outside the paged history. This only changes rendering, not database history or model context. Raw events still arrive through the existing stream and remain in browser memory; server-side history pagination is separate work.
+Graph links can bring an unmounted message into the window; Latest returns to the most recent page. Pending human/Vault forms remain mounted outside the paged history. This only changes rendering, not database history or model context. As of 0.9.9, server-side pagination also bounds the initial download (see below).
 
 Verified against an existing 102-block conversation and 107-node sequence: initial pages contain 30 blocks, crossing the upper threshold grows to 60 and 90, and navigating farther back evicts the opposite edge without exceeding 90. Small scrolls in the middle do not change the page. Measured the same graph card before/after prepending: it moved only by the requested wheel distance. Frontend regression tests cover thresholds, direction, overlap and traversing 10,000 items in both directions.
+
+
+## Paged history and live updates (0.9.9)
+
+The chat and execution sequence bootstrap with
+`GET /api/sessions/<id>/history`. Each page reads at most 1,200 relevant persisted
+records and consolidates text/reasoning fragments by block. Internal activity and
+usage bookkeeping are omitted from historical pages. The response contains
+`events`, boundary-overlapping `messages`, `event_cursor`, an optional `before`
+cursor, and the event interval `(range_start, range_end]` represented by the page.
+
+Older pages are requested with `?before=<cursor>` only when the user scrolls
+up to the oldest loaded edge of the chat or execution sequence. They preserve the
+visible scroll anchor. The existing 30-item/90-item DOM window remains in place;
+only requested history is retained in browser memory.
+
+After bootstrap, the UI opens
+`/api/events?session_id=<id>&activity=live&view=chat&after=<event_cursor>`.
+The cursor bridges the snapshot and live stream, including events committed
+while the snapshot was in flight. Native SSE reconnection uses `Last-Event-ID`.
+Periodic and lifecycle-triggered reconciliation uses `history?after=<cursor>`;
+`has_more` signals additional bounded catch-up pages. Clients replace only the
+returned event interval, retain newer concurrent events, and deduplicate messages
+by ID. A `reset` response replaces local history after a context archive/reset.
+
+Tool cards carry status, IDs and a `details_url`; opening a card fetches the full
+persisted event from `GET /api/events/<id>`. Execution reports carry only navigation
+metadata. Stored events, action results and model context are not modified.
+The original full event API remains available to existing clients.
+
+Usage totals are reconstructed once per server process, then updated from newly
+persisted usage events. Provider request IDs remain deduplicated across updates,
+and descendant usage still contributes to parent totals. JSON responses use
+UTF-8 directly. This reduces transfer without depending on proxy compression.

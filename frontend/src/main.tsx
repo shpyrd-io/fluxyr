@@ -1,3 +1,4 @@
+import { mergeHistoryEvents, mergeMessages } from "./history-data";
 import { Status, statusLabel } from "./status";
 import { ThemeSelector } from "./theme-selector";
 import { ApprovalKeyDialog } from "./approval-key-dialog";
@@ -227,7 +228,11 @@ function App() {
               systems={[
                 {
                   name: "Worker",
-                  status: ready ? "ACTIVE" : workerState === "recovering" ? "SCANNING" : "OFFLINE",
+                  status: ready
+                    ? "ACTIVE"
+                    : workerState === "recovering"
+                      ? "SCANNING"
+                      : "OFFLINE",
                   detail: ready ? undefined : workerState,
                 },
                 {
@@ -416,91 +421,140 @@ function Chat({
     followLatest = useRef(true);
   const [showLatest, setShowLatest] = useState(false);
   const replayCursor = useRef<number | null>(null);
-  const load = useCallback(
-    () =>
-      api("/sessions/" + session + "?view=chat")
-        .then((d) => {
-          replayCursor.current ??= d.event_cursor;
-          setMessages(d.messages);
-          setLoaded(true);
-          setTitle(d.session.title);
-          setKind(d.session.kind);
-        })
-        .catch((e) => onError(e.message)),
-    [session, onError],
-  );
-  useEffect(() => {
-    replayCursor.current = null;
-    const sessionPoller = createPoller(load, 60_000);
-    sessionPoller.start();
-    setEvents([]);
-    const stream = new EventSource(
-      "/api/events?activity=live&session_id=" + session,
+  const olderCursor = useRef<number | null>(null);
+  const [hasOlder, setHasOlder] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const olderBusy = useRef(false);
+  const epoch = useRef(0);
+  const applyPage = useCallback((d: RecordData) => {
+    setMessages((old) =>
+      d.reset ? d.messages : mergeMessages(old, d.messages),
     );
+    setEvents((old) => (d.reset ? d.events : mergeHistoryEvents(old, d)));
+    setLoaded(true);
+    setTitle(d.session.title);
+    setKind(d.session.kind);
+  }, []);
+  const load = useCallback(async () => {
+    const current = epoch.current;
+    let more = true;
+    while (more && current === epoch.current) {
+      const after = replayCursor.current;
+      const d = await api(
+        `/sessions/${session}/history${after === null ? "" : `?after=${after}`}`,
+      );
+      if (current !== epoch.current) return;
+      applyPage(d);
+      if (after === null || d.reset) {
+        olderCursor.current = d.before;
+        setHasOlder(d.before !== null);
+      }
+      replayCursor.current = d.event_cursor;
+      more = d.has_more;
+    }
+  }, [session, applyPage]);
+  const loadOlder = useCallback(async () => {
+    if (olderBusy.current || olderCursor.current === null) return;
+    olderBusy.current = true;
+    setLoadingOlder(true);
+    const current = epoch.current;
+    try {
+      const d = await api(
+        `/sessions/${session}/history?before=${olderCursor.current}`,
+      );
+      if (current !== epoch.current) return;
+      applyPage(d);
+      olderCursor.current = d.before;
+      setHasOlder(d.before !== null);
+    } catch (e: any) {
+      if (current === epoch.current) onError(e.message);
+    } finally {
+      if (current === epoch.current) {
+        olderBusy.current = false;
+        setLoadingOlder(false);
+      }
+    }
+  }, [session, applyPage, onError]);
+  useEffect(() => {
+    epoch.current++;
+    replayCursor.current = null;
+    olderCursor.current = null;
+    olderBusy.current = false;
+    setHasOlder(false);
+    setLoadingOlder(false);
+    setLoaded(false);
+    setMessages([]);
+    setEvents([]);
+    let disposed = false;
+    let stream: EventSource | undefined;
     let buffer: RecordData[] = [];
     let flush: ReturnType<typeof setTimeout> | undefined;
-    stream.onmessage = (e) => {
-      const event = JSON.parse(e.data);
-      buffer.push(event);
-      if (!flush)
-        flush = setTimeout(() => {
-          const batch = buffer;
-          buffer = [];
-          flush = undefined;
-          activityFeed.update(batch);
-          const historyBatch = batch.filter((ev) => ev.type !== "activity");
-          if (historyBatch.length)
-            setEvents((old) => {
-              const seen = new Set(old.map((ev) => ev.id));
-              return [
-                ...old,
-                ...historyBatch.filter((ev) => {
-                  if (seen.has(ev.id)) return false;
-                  seen.add(ev.id);
-                  return true;
-                }),
-              ];
-            });
-          if (
-            batch.some(
-              (event) =>
-                event.type === "usage" &&
-                replayCursor.current !== null &&
-                event.id > replayCursor.current,
-            )
-          )
-            window.dispatchEvent(new Event("fluxyr:usage"));
-          if (
-            batch.some(
-              (event) =>
-                replayCursor.current !== null &&
-                event.id > replayCursor.current &&
-                [
-                  "started",
-                  "building",
-                  "succeeded",
-                  "failed",
-                  "cancelled",
-                  "interrupted",
-                  "waiting",
-                  "paused",
-                  "queued",
-                  "execution_report",
-                ].includes(event.type),
-            )
-          ) {
-            void sessionPoller.refresh();
-            window.dispatchEvent(new Event("fluxyr:usage"));
-            refreshJobs();
-          }
-        }, 50);
-    };
+    const sessionPoller = createPoller(async () => {
+      try {
+        await load();
+        if (disposed || stream) return;
+        // Snapshot first, then resume at its cursor. Events committed while
+        // the HTTP request was in flight are replayed exactly once by SSE.
+        stream = new EventSource(
+          `/api/events?activity=live&view=chat&session_id=${session}&after=${replayCursor.current}`,
+        );
+        stream.onmessage = (e) => {
+          buffer.push(JSON.parse(e.data));
+          if (!flush)
+            flush = setTimeout(() => {
+              const batch = buffer;
+              buffer = [];
+              flush = undefined;
+              activityFeed.update(batch);
+              const historyBatch = batch.filter(
+                (ev) =>
+                  ev.type !== "activity" && ev.id > (replayCursor.current ?? 0),
+              );
+              if (historyBatch.length)
+                setEvents((old) => {
+                  const seen = new Set(old.map((ev) => ev.id));
+                  return [
+                    ...old,
+                    ...historyBatch.filter((ev) => !seen.has(ev.id)),
+                  ];
+                });
+              if (batch.some((ev) => ev.type === "usage"))
+                window.dispatchEvent(new Event("fluxyr:usage"));
+              if (
+                batch.some((ev) =>
+                  [
+                    "started",
+                    "building",
+                    "succeeded",
+                    "failed",
+                    "cancelled",
+                    "interrupted",
+                    "waiting",
+                    "paused",
+                    "queued",
+                    "execution_report",
+                  ].includes(ev.type),
+                )
+              ) {
+                void sessionPoller.refresh();
+                window.dispatchEvent(new Event("fluxyr:usage"));
+                refreshJobs();
+              }
+            }, 100);
+        };
+      } catch (e: any) {
+        if (!disposed) onError(e.message);
+      }
+    }, 60_000);
+    sessionPoller.start();
     return () => {
-      stream.close();
+      disposed = true;
+      epoch.current++;
+      stream?.close();
       sessionPoller.stop();
       clearTimeout(flush);
     };
-  }, [session, load, refreshJobs, generation, activityFeed]);
+  }, [session, load, refreshJobs, generation, activityFeed, onError]);
   const timeline = useMemo(
     () => buildTimeline(messages, events),
     [messages, events],
@@ -509,6 +563,7 @@ function Chat({
     timeline,
     streamRef,
     () => followLatest.current,
+    { hasOlder, loadOlder },
   );
   const jumpToLatest = useCallback(() => {
     followLatest.current = true;
@@ -567,7 +622,6 @@ function Chat({
       setEvents([]);
       setMemory(null);
       setGeneration((v) => v + 1);
-      load();
       refreshJobs();
     } catch (e: any) {
       onError(e.message);
@@ -760,7 +814,7 @@ function Chat({
           }}
         >
           <div ref={contentRef}>
-            {loaded && messages.length === 0 && (
+            {loaded && messages.length === 0 && events.length === 0 && (
               <div className="welcome">
                 <div className="welcome-symbol">
                   <Logo />
@@ -786,8 +840,12 @@ function Chat({
                 </div>
               </div>
             )}
-            {history.hasOlder && (
-              <div className="history-edge">Scroll up for earlier messages</div>
+            {(history.hasOlder || hasOlder) && (
+              <div className="history-edge">
+                {loadingOlder
+                  ? "Loading earlier messages…"
+                  : "Scroll up for earlier messages"}
+              </div>
             )}
             <div className="history-window">
               {history.items.map((item, index) => {
@@ -960,6 +1018,8 @@ function Chat({
         </div>
       </div>
       <ExecutionFlowPanel
+        hasOlder={hasOlder}
+        loadOlder={loadOlder}
         jobs={allJobs}
         messages={messages}
         events={events}
@@ -990,7 +1050,7 @@ function Reasoning({ text, live }: { text: string; live: boolean }) {
   );
 }
 function EventCard({
-  event: e,
+  event: summaryEvent,
   open,
   jobs,
 }: {
@@ -998,6 +1058,40 @@ function EventCard({
   open: (id: string) => void;
   jobs: RecordData[];
 }) {
+  const [detail, setDetail] = useState<RecordData | null>(null);
+  const [detailError, setDetailError] = useState("");
+  const detailBusy = useRef(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const e =
+    detail && detail.id === summaryEvent.id
+      ? {
+          ...detail,
+          payload: {
+            ...detail.payload,
+            interrupted_status: summaryEvent.payload.interrupted_status,
+          },
+        }
+      : summaryEvent;
+  const fetchDetail = async () => {
+    if (
+      !summaryEvent.details_url ||
+      detail?.id === summaryEvent.id ||
+      detailBusy.current
+    )
+      return;
+    detailBusy.current = true;
+    setDetailError("");
+    try {
+      setDetail(await api(summaryEvent.details_url));
+    } catch (err: any) {
+      setDetailError(err.message);
+    } finally {
+      detailBusy.current = false;
+    }
+  };
+  useEffect(() => {
+    if (detailOpen) void fetchDetail();
+  }, [summaryEvent.id, detailOpen]);
   const dismissKey = `fluxyr-dismissed-error:${e.job_id}`;
   const [dismissed, setDismissed] = useState(
     () => localStorage.getItem(dismissKey) === "1",
@@ -1062,7 +1156,12 @@ function EventCard({
     return <LocalFilePreview url={e.payload.url} title={e.payload.title} />;
   if (e.type === "progress") return null;
   return (
-    <details className="tool-event">
+    <details
+      className="tool-event"
+      onToggle={(ev) => {
+        setDetailOpen(ev.currentTarget.open);
+      }}
+    >
       <summary>
         <Wrench size={14} />
         <code>{e.payload.tool_name || "Tool call"}</code>
@@ -1090,6 +1189,10 @@ function EventCard({
           />
         </span>
       </summary>
+      {detailError && <p className="error">{detailError}</p>}
+      {e.details_url && detail?.id !== e.id && !detailError && (
+        <p>Loading tool details…</p>
+      )}
       <div className="tool-debug-ids">
         <span>
           Job: <code>{e.job_id}</code>

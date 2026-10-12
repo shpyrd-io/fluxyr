@@ -33,6 +33,7 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
     app = app or Flask(
         __name__, static_folder="static", static_url_path="/assets-static"
     )
+    app.json.ensure_ascii = False
     engine.app = app
     engine.native_tools = getattr(app, "_native_tools", {})
     app.config.update(
@@ -91,7 +92,12 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
         approval_route = (
             request.path == "/api/approvals"
             or request.path.startswith("/api/approvals/")
-            or request.endpoint in {"fluxyr.decision", "fluxyr.vault_decision", "fluxyr.browser_private_input"}
+            or request.endpoint
+            in {
+                "fluxyr.decision",
+                "fluxyr.vault_decision",
+                "fluxyr.browser_private_input",
+            }
         )
         if settings.approvals_api_key and approval_route:
             scheme, _, token = request.headers.get("Authorization", "").partition(" ")
@@ -174,6 +180,34 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
                         select(Session).order_by(Session.created_at.desc())
                     )
                 ]
+            )
+
+    @routes.get("/api/sessions/<sid>/history")
+    def session_history(sid):
+        from .history import history_page
+
+        return jsonify(
+            history_page(
+                engine.db,
+                sid,
+                before=request.args.get("before", type=int),
+                after=request.args.get("after", type=int),
+            )
+        )
+
+    @routes.get("/api/events/<int:event_id>")
+    def event_detail(event_id):
+        from .persistence import restore_tool_identity
+
+        with engine.db.transaction() as s:
+            event = s.get(Event, event_id)
+            if not event:
+                abort(404)
+            return jsonify(
+                {
+                    **row_dict(event),
+                    "payload": restore_tool_identity(event.type, event.payload),
+                }
             )
 
     @routes.get("/api/sessions/<sid>")
@@ -436,6 +470,8 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
             else None
         )
 
+        request_compact = request.args.get("view") == "chat"
+
         def generate():
             cursor = after
             # Polls use short transactions; no DB connection is held by an idle browser.
@@ -445,7 +481,16 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
                 )
                 for event in records:
                     cursor = event["id"]
-                    yield f"id: {cursor}\ndata: {json.dumps(event)}\n\n"
+                    if request_compact:
+                        from .history import HIDDEN, compact_event
+
+                        if event["type"] in HIDDEN and event["type"] not in {
+                            "activity",
+                            "usage",
+                        }:
+                            continue
+                        event = compact_event(event)
+                    yield f"id: {cursor}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
                 if not records:
                     # Do not rescan a tail containing only omitted progress marks.
                     cursor = max(cursor, activity_after or 0)

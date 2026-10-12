@@ -20,10 +20,14 @@ export function useHistoryWindow<T extends { id: string }>(
   items: T[],
   scroll: RefObject<HTMLDivElement | null>,
   following: () => boolean,
+  remote?: { hasOlder: boolean; loadOlder: () => Promise<void> },
 ) {
   const [cursor, setCursor] = useState<Cursor | null>(null);
   const pending = useRef<Anchor | null>(null);
   const previousTop = useRef(0);
+  const remoteLoading = useRef(false);
+  const remoteAnchor = useRef<Anchor | null>(null);
+  const [, refreshAnchor] = useState(0);
   const lastIndex = cursor
     ? items.findIndex((item) => item.id === cursor.last)
     : -1;
@@ -51,6 +55,17 @@ export function useHistoryWindow<T extends { id: string }>(
 
   useLayoutEffect(() => {
     const el = scroll.current;
+    const incoming = remoteAnchor.current;
+    if (incoming) {
+      remoteAnchor.current = null;
+      const index = items.findIndex((item) => item.id === incoming.id);
+      if (index >= 0) {
+        const first = Math.max(0, index - HISTORY_PAGE_SIZE);
+        pending.current = incoming;
+        setBounds(first, Math.min(items.length, first + HISTORY_WINDOW_SIZE));
+        return;
+      }
+    }
     const target = pending.current;
     if (!el || !target) return;
     const row = rows().find((row) => row.dataset.historyId === target.id);
@@ -77,6 +92,28 @@ export function useHistoryWindow<T extends { id: string }>(
     );
     previousTop.current = el.scrollTop;
     if (!cursor && items.length) setBounds(start, end);
+    if (direction === "older" && start === 0 && remote?.hasOlder) {
+      if (remoteLoading.current) return;
+      const anchor = rows().find(
+        (row) =>
+          row.getBoundingClientRect().bottom > el.getBoundingClientRect().top,
+      );
+      const saved = anchor
+        ? {
+            id: anchor.dataset.historyId!,
+            offset:
+              anchor.getBoundingClientRect().top -
+              el.getBoundingClientRect().top,
+          }
+        : null;
+      remoteLoading.current = true;
+      void remote.loadOlder().finally(() => {
+        remoteLoading.current = false;
+        remoteAnchor.current = saved;
+        refreshAnchor((n) => n + 1);
+      });
+      return;
+    }
     if (
       !direction ||
       (direction === "older" ? start === 0 : end === items.length)

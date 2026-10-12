@@ -7,6 +7,7 @@ export type TimelineItem = {
   kind: "user" | "assistant" | "reasoning" | "event";
   text: string;
   live?: boolean;
+  partial?: boolean;
   event?: RecordData;
   modelCallId?: string;
 };
@@ -23,6 +24,11 @@ export function buildTimeline(
   const legacy = new Map<string, string>();
   const seen = new Set<number>();
   const builds = new Map<string, TimelineItem>();
+  const opened = new Set(
+    events
+      .filter((e) => e.type === "stream_open")
+      .map((e) => `${e.job_id}:${e.payload.block_id}`),
+  );
   const buildIds = new Set(
     events
       .filter((e) => ["build_started", "execution_started"].includes(e.type))
@@ -51,6 +57,7 @@ export function buildTimeline(
               : "assistant",
           text: "",
           live: true,
+          partial: !!p.block_id && !opened.has(`${e.job_id}:${p.block_id}`),
         };
         blocks.set(key, block);
         items.push(block);
@@ -162,7 +169,8 @@ export function buildTimeline(
       legacy.delete(e.job_id);
       if (["failed", "cancelled", "interrupted"].includes(e.type)) {
         for (const item of tools.values()) {
-          if (item.jobId !== e.job_id || item.event?.type !== "tool_begin") continue;
+          if (item.jobId !== e.job_id || item.event?.type !== "tool_begin")
+            continue;
           // A killed worker cannot emit tool_end. Keep the original event/args
           // but project the job's terminal state instead of a permanent spinner.
           item.event = {
@@ -176,6 +184,27 @@ export function buildTimeline(
     }
   }
   for (const m of messages) {
+    // A page can start inside the final answer's stream. Prefer the complete
+    // persisted answer over rendering its suffix and then the same answer twice.
+    if (m.role === "assistant") {
+      const candidate = items
+        .filter(
+          (i) =>
+            i.jobId === m.job_id &&
+            i.kind === "assistant" &&
+            i.createdAt <= m.created_at,
+        )
+        .at(-1);
+      if (
+        candidate?.partial &&
+        !candidate.live &&
+        candidate.text &&
+        m.content.endsWith(candidate.text)
+      ) {
+        candidate.text = m.content;
+        continue;
+      }
+    }
     // The final persisted message is also the final streamed text block. Keep
     // intermediate model text and reasoning, but don't duplicate the final reply.
     if (

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.9 — 2026-10-12
+
+- Page conversation and execution history on the server, consolidate historical stream fragments, and resume live events from the snapshot cursor instead of replaying every event on each visit. Load full tool arguments and results only when their card is expanded; preserve scroll position when loading older pages.
+- Refresh provider usage totals incrementally, retaining request deduplication and parent/child attribution. Send UTF-8 JSON without expanding accented text into Unicode escapes.
+
 ## 0.9.8 — 2026-10-08
 
 - Add per-call Vault credential selection through top-level `x-vault` string parameters. Callers pass item IDs; Python reads private content with `secret(parameter_name)`. Preserve fixed `secrets`, OAuth/mTLS resolution, redaction and human continuations without binding reusable actions to credential display names.

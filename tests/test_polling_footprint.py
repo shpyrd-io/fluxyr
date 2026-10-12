@@ -167,3 +167,55 @@ def test_usage_history_is_paged_and_other_sessions_do_not_send_call_maps(make_ap
     assert totals[job["id"]]["tokens"] == 453
     assert totals[child["id"]]["tokens"] == 3
     assert pages == 3
+
+
+def test_incremental_usage_reads_only_new_events_and_counts_new_children(make_app):
+    from fluxyr.usage import UsageReports, usage_report
+
+    _, engine, _ = make_app()
+    parent = engine.store.enqueue("Parent")
+    first = engine.store.emit(
+        MAIN_SESSION,
+        parent["id"],
+        "usage",
+        {"model_call_id": "one", "request_id": "r1", "input_tokens": 10},
+    )
+    reports = UsageReports(engine.db)
+    assert reports.get()["total"]["tokens"] == 10
+    child = engine.store.enqueue(
+        "Child", session_id=None, inputs={"parent_job_id": parent["id"]}
+    )
+    engine.store.emit(
+        child["session_id"],
+        child["id"],
+        "usage",
+        {
+            "model_call_id": "two",
+            "request_id": "r2",
+            "tool_call_id": "t",
+            "input_tokens": 5,
+        },
+    )
+    # Provider request deduplication must survive incremental refreshes.
+    engine.store.emit(
+        child["session_id"],
+        child["id"],
+        "usage",
+        {"model_call_id": "duplicate", "request_id": "r1", "input_tokens": 100},
+    )
+    queries = []
+    event.listen(
+        engine.db.engine,
+        "before_cursor_execute",
+        lambda c, cur, statement, params, *a: queries.append((statement, params)),
+    )
+    actual = reports.get()
+    event_queries = [(q, p) for q, p in queries if "events.payload" in q]
+    assert len(event_queries) == 1
+    assert "events.id >" in event_queries[0][0]
+    params = event_queries[0][1]
+    assert first in (params.values() if isinstance(params, dict) else params)
+    expected = usage_report(engine.db)
+    assert {k: actual[k] for k in expected} == expected
+    assert actual["total"]["tokens"] == 15
+    assert actual["by_job"][parent["id"]]["tokens"] == 15
