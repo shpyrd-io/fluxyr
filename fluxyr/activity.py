@@ -17,7 +17,8 @@ class ActivityEmitter:
         self.model_call_id = None
         self.usage_seen = False
         self.fragment = None
-        self.fragment_time = 0
+        # First text must flush regardless of the host's monotonic clock origin.
+        self.fragment_time = float("-inf")
         self.text_positions = {}
         seen = {job["id"]}
         parent = job["input"].get("parent_job_id") or job["input"].get(

@@ -1,10 +1,23 @@
 import json
 import threading
 import time
+from types import SimpleNamespace
 
 from fluxyr.activity import ActivityEmitter
 from fluxyr.database import MAIN_SESSION
 from fluxyr.live_text import LiveText, LiveTextReader
+
+
+def test_first_fragment_flush_does_not_depend_on_host_uptime(make_app, monkeypatch):
+    _, engine, _ = make_app()
+    job = engine.store.enqueue("First fragment")
+    monkeypatch.setattr("fluxyr.activity.time", SimpleNamespace(monotonic=lambda: 0.01))
+    emit = ActivityEmitter(engine.store, job)
+    emit("delta", {"block_id": "first", "text": "Ready"})
+    assert any(
+        event["type"] == "delta" and event["payload"]["text"] == "Ready"
+        for event in engine.store.events(job["session_id"])
+    )
 
 
 def test_wire_text_arrives_before_commit_without_database_queries(
