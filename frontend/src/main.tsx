@@ -581,16 +581,27 @@ function Chat({
     setShowLatest(false);
     history.goToLatest();
   }, [history.goToLatest]);
+  const scrollGeometry = useRef({ height: 0, content: 0 });
   useLayoutEffect(() => {
     if (followLatest.current) jumpToLatest();
   }, [timeline, jumpToLatest]);
   useEffect(() => {
     const observer = new ResizeObserver(() => {
-      if (followLatest.current) jumpToLatest();
+      // The activity panel changes the viewport, while live text changes the
+      // content. Pin either resize directly without rerendering chat history
+      // on every fragment (history navigation is handled separately above).
+      const el = streamRef.current;
+      if (!el) return;
+      if (followLatest.current) el.scrollTop = el.scrollHeight;
+      scrollGeometry.current = {
+        height: el.clientHeight,
+        content: el.scrollHeight,
+      };
     });
     if (contentRef.current) observer.observe(contentRef.current);
+    if (streamRef.current) observer.observe(streamRef.current);
     return () => observer.disconnect();
-  }, [jumpToLatest]);
+  }, []);
   async function send(e: React.FormEvent) {
     e.preventDefault();
     if (!draft.trim()) return;
@@ -816,6 +827,16 @@ function Chat({
           onScroll={() => {
             const el = streamRef.current;
             if (!el) return;
+            // A resize can clamp scrollTop and dispatch scroll before the
+            // ResizeObserver runs. That is not the user leaving the bottom.
+            if (
+              followLatest.current &&
+              (scrollGeometry.current.height !== el.clientHeight ||
+                scrollGeometry.current.content !== el.scrollHeight)
+            ) {
+              el.scrollTop = el.scrollHeight;
+              return;
+            }
             history.onScroll();
             const nearBottom =
               !history.hasNewer &&

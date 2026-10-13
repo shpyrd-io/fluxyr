@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.11 — 2026-10-12
+
+- Keep the conversation at the latest message when the activity panel opens, collapses, or changes size, and while live text grows. Preserve manual scrolling through older messages and avoid rerendering chat history just to follow a resize.
+
 ## 0.9.10 — 2026-10-12
 
 - Wake live event streams immediately after a database commit instead of polling every second. Keep durable replay and batched writes, use a 10-second fallback for external writers, and process durable UI events in 50 ms batches.

@@ -114,10 +114,25 @@ def test_live_text_before_persistence_in_browser(make_app, tmp_path):
     emit("delta", {"block_id": "live", "kind": "delta", "text": "Persisted "})
     emit.fragment_time = time.monotonic()
     emit.last["main"] = time.monotonic()
+    full_text = ["Persisted "]
 
     @app.post("/_test/fragment")
     def fragment():
+        full_text.append("live 🌍!")
         emit("delta", {"block_id": "live", "kind": "delta", "text": "live 🌍!"})
+        return {"ok": True}
+
+    @app.post("/_test/grow")
+    def grow():
+        text = "\n\n" + "More streamed text.\n\n" * 40
+        full_text.append(text)
+        emit("delta", {"block_id": "live", "kind": "delta", "text": text})
+        return {"ok": True}
+
+    @app.post("/_test/activity")
+    def activity():
+        # Resize only the activity panel: no durable chat event to scroll for us.
+        emit.publish("main", {"phase": "tool", "tool": "read", "chunks": 0})
         return {"ok": True}
 
     @app.get("/_test/saved")
@@ -140,7 +155,7 @@ def test_live_text_before_persistence_in_browser(make_app, tmp_path):
                     session_id=MAIN_SESSION,
                     job_id=job["id"],
                     role="assistant",
-                    content="Persisted live 🌍!",
+                    content="".join(full_text),
                 )
             )
         engine.store.emit(MAIN_SESSION, job["id"], "succeeded", {})
