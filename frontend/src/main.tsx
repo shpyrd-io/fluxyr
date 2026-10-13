@@ -657,38 +657,36 @@ function Chat({
       Number(a.status === "queued") - Number(b.status === "queued") ||
       a.created_at - b.created_at,
   )[0];
+  const sessionStatus = !loaded
+    ? "Loading session"
+    : active
+      ? statusLabel(active.status)
+      : "Ready for input";
   return (
     <div className="chat-workspace">
       <div className="chat">
-        <div className="chat-title">
-          <div>
-            <Breadcrumb
-              className="chat-breadcrumb"
-              aria-label="Session breadcrumb"
+        <div className="chat-title session-toolbar">
+          <div className="session-identity">
+            <span
+              className={`session-signal ${!loaded ? "loading" : active?.status || "ready"}`}
+              role="status"
+              aria-live="polite"
+              title={sessionStatus}
             >
-              <BreadcrumbList>
-                <BreadcrumbItem>
-                  <span>01</span>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>
-                    {session === mainSession
-                      ? "Agent console"
-                      : kind === "build"
-                        ? "Skill builder"
-                        : "Isolated execution"}
-                  </BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-            <Typography variant="H1">
-              {session === mainSession ? "Agent workbench" : title}
-            </Typography>
-            {session === mainSession && (
-              <p className="chat-subtitle">
-                Build skills. Automate work. Keep the context.
-              </p>
+              <span className="sr-only">{sessionStatus}</span>
+            </span>
+            <span className="session-type">
+              {session === mainSession
+                ? "Persistent session"
+                : kind === "build"
+                  ? "Skill builder"
+                  : "Isolated context"}
+            </span>
+            <code title={session}>{session.slice(0, 8)}</code>
+            {session !== mainSession && (
+              <span className="session-title" title={title}>
+                {title}
+              </span>
             )}
           </div>
           <div className="session-actions">
@@ -723,18 +721,6 @@ function Chat({
               <Eraser size={14} /> Clear context
             </Button>
           </div>
-        </div>
-        <div className="session-strip">
-          <span>
-            <span className="dot online" />
-            {session === mainSession
-              ? "PERSISTENT SESSION"
-              : "ISOLATED CONTEXT"}
-          </span>
-          <code>{session.slice(0, 8)}</code>
-          <span className="session-mode">
-            {active ? active.status.toUpperCase() : "READY FOR INPUT"}
-          </span>
         </div>
         <Dialog open={diagnosticsOpen} onOpenChange={setDiagnosticsOpen}>
           <DialogContent

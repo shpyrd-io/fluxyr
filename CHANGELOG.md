@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.12 — 2026-10-12
+
+- Compact the main header and combine session identity, live state indicator, and conversation actions into one toolbar, removing the duplicate breadcrumb and title.
+- Show execution sequence nodes as compact event/tool labels with status indicators instead of repeating conversation text. Retain usage, version references, navigation to the original event, and smaller parallel groups.
+
 ## 0.9.11 — 2026-10-12
 
 - Keep the conversation at the latest message when the activity panel opens, collapses, or changes size, and while live text grows. Preserve manual scrolling through older messages and avoid rerendering chat history just to follow a resize.

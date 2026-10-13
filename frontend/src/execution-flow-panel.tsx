@@ -90,26 +90,27 @@ export function ExecutionFlowPanel({
   }, [following, history.goToLatest]);
   function renderNode(n: FlowNode) {
     const Icon = icons[n.kind] || Wrench;
+    const kind = labels[n.kind] || n.kind;
+    const label = ["tool", "human_request"].includes(n.kind) ? n.label : kind;
     return (
       <Card key={n.id} className={`flow-node ${n.kind} ${n.status}`}>
         <CardHeader className="flow-card-header">
           <CardTitle className="flow-node-kind">
-            <Icon size={12} />
-            {labels[n.kind] || n.kind}
+            <button
+              type="button"
+              className="flow-node-link"
+              onClick={() => n.target && onJump(n.target)}
+              disabled={!n.target}
+              title={label}
+              aria-label={label === kind ? kind : `${kind}: ${label}`}
+            >
+              <Icon size={12} />
+              <span className="flow-node-label">{label}</span>
+            </button>
           </CardTitle>
-          <Status status={n.status} />
+          <Status status={n.status} compact />
         </CardHeader>
         <CardContent className="flow-card-content">
-          <button
-            type="button"
-            className="flow-node-link"
-            onClick={() => n.target && onJump(n.target)}
-            disabled={!n.target}
-            title={n.label}
-            aria-label={`${labels[n.kind] || n.kind}: ${n.label}`}
-          >
-            <span className="flow-node-label">{n.label}</span>
-          </button>
           {n.versionId && <DebugId id={n.versionId} label="v" />}
           <UsageBadge
             callId={n.modelCallId}
