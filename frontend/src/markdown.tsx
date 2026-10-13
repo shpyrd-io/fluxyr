@@ -1,8 +1,13 @@
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { markdownImageUrl } from "./file-preview-kind";
+import { memo } from "react";
 
-export function Markdown({ children }: { children: string }) {
+export const Markdown = memo(function Markdown({
+  children,
+}: {
+  children: string;
+}) {
   return (
     <div className="markdown">
       <ReactMarkdown
@@ -23,4 +28,4 @@ export function Markdown({ children }: { children: string }) {
       </ReactMarkdown>
     </div>
   );
-}
+});

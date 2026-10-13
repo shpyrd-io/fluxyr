@@ -73,6 +73,8 @@ def compact_events(events):
             key = (job, block, kind)
             if key in blocks:
                 blocks[key]["payload"]["text"] += p.get("text", "")
+                if "text_end" in p:
+                    blocks[key]["payload"]["text_end"] = p["text_end"]
                 continue
             event = {**event, "payload": {**p, "text": p.get("text", "")}}
             blocks[key] = event

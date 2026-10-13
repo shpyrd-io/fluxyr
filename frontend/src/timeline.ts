@@ -6,6 +6,7 @@ export type TimelineItem = {
   createdAt: number;
   kind: "user" | "assistant" | "reasoning" | "event";
   text: string;
+  textEnd?: number;
   live?: boolean;
   partial?: boolean;
   event?: RecordData;
@@ -63,6 +64,7 @@ export function buildTimeline(
         items.push(block);
       }
       block.text += p.text || "";
+      if (typeof p.text_end === "number") block.textEnd = p.text_end;
     } else if (e.type === "stream_close") {
       const block = blocks.get(`${e.job_id}:${p.block_id}`);
       if (block) block.live = false;

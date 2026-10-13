@@ -8,6 +8,8 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from .event_signal import EventSignal
+from .live_text import LiveText
 from .models import Base, Event, Job, Session, Version
 
 MAIN_SESSION = "00000000-0000-0000-0000-000000000001"
@@ -22,6 +24,8 @@ class Database:
             raise ValueError("DATABASE_URL must use SQLite or PostgreSQL")
         self._transaction_lock = threading.RLock()
         self._local = threading.local()
+        self.event_signal = EventSignal()
+        self.live_text = LiveText()
         options = {"pool_pre_ping": True}
         if not self.sqlite:
             options["connect_args"] = {"connect_timeout": 5}
@@ -49,6 +53,15 @@ class Database:
 
         self.factory = sessionmaker(self.engine, expire_on_commit=False)
 
+        @event.listens_for(self.factory, "after_flush")
+        def remember_events(session, _):
+            # Covers events inserted directly by queue/approval/routine code as
+            # well as Store.emit. Flushing alone must never wake an SSE reader.
+            sessions = session.info.setdefault("event_sessions", set())
+            sessions.update(
+                row.session_id for row in session.new if isinstance(row, Event)
+            )
+
     @contextmanager
     def transaction(self):
         with self._transaction_lock if self.sqlite else nullcontext():
@@ -65,6 +78,12 @@ class Database:
                 finally:
                     if self.sqlite:
                         self._local.session = None
+            committed_sessions = session.info.get("event_sessions", set())
+        # The outer transaction has committed and the SQLite lock is released.
+        # A nested savepoint rollback may cause a harmless extra wakeup, never
+        # delivery of uncommitted data: readers always reload durable events.
+        if committed_sessions:
+            self.event_signal.publish(committed_sessions)
 
     def initialize(self):
         with self.engine.begin() as conn:

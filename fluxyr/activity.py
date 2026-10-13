@@ -18,6 +18,7 @@ class ActivityEmitter:
         self.usage_seen = False
         self.fragment = None
         self.fragment_time = 0
+        self.text_positions = {}
         seen = {job["id"]}
         parent = job["input"].get("parent_job_id") or job["input"].get(
             "builder", {}
@@ -68,26 +69,50 @@ class ActivityEmitter:
             )
         # Argument contents can include source or credentials: keep counters only.
         if kind in ("delta", "reasoning"):
+            block = payload.get("block_id")
+            if block:
+                offset = self.text_positions.get(block, 0)
+                # UTF-16 offsets match browser String.slice, including emoji.
+                end = offset + len(payload.get("text", "").encode("utf-16-le")) // 2
+                payload = {**payload, "text_offset": offset, "text_end": end}
+                self.text_positions[block] = end
+                self.store.db.live_text.publish(
+                    self.job["session_id"], self.job["id"], kind, payload
+                )
             # Preserve block boundaries and exact text; batch adjacent fragments
             # rather than opening a transaction for every token. No background
             # writer can survive its execution or write after a terminal event.
             previous = self.fragment
             if previous and (
                 previous[0] != kind
-                or {k: v for k, v in previous[1].items() if k != "text"}
-                != {k: v for k, v in payload.items() if k != "text"}
+                or {
+                    k: v
+                    for k, v in previous[1].items()
+                    if k not in {"text", "text_offset", "text_end"}
+                }
+                != {
+                    k: v
+                    for k, v in payload.items()
+                    if k not in {"text", "text_offset", "text_end"}
+                }
                 or len(previous[1].get("text", "")) + len(payload.get("text", ""))
                 > 8000
             ):
                 self.flush_fragments()
             if self.fragment:
                 self.fragment[1]["text"] += payload.get("text", "")
+                if block:
+                    self.fragment[1]["text_end"] = end
             else:
                 self.fragment = (kind, dict(payload))
             if time.monotonic() - self.fragment_time >= self.interval:
                 self.flush_fragments()
         elif kind not in ("tool_argument_delta", "substream_delta"):
             self.store.emit(self.job["session_id"], self.job["id"], kind, payload)
+            if kind == "stream_close":
+                self.text_positions.pop(payload.get("block_id"), None)
+            elif kind == "model_end":
+                self.text_positions.clear()
         scope = payload.get("activity_scope", "main")
         with self.lock:
             if kind in ("delta", "reasoning", "tool_argument_delta", "substream_delta"):

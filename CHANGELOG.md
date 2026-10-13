@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.10 — 2026-10-12
+
+- Wake live event streams immediately after a database commit instead of polling every second. Keep durable replay and batched writes, use a 10-second fallback for external writers, and process durable UI events in 50 ms batches.
+- Deliver live text directly to connected session readers before persistence, with bounded queues and offset-based reconciliation against saved history. Render active text at animation-frame cadence without updating the execution graph per fragment; preserve background routine persistence, reconnect replay, and completed-message Markdown memoization.
+
 ## 0.9.9 — 2026-10-12
 
 - Page conversation and execution history on the server, consolidate historical stream fragments, and resume live events from the snapshot cursor instead of replaying every event on each visit. Load full tool arguments and results only when their card is expanded; preserve scroll position when loading older pages.

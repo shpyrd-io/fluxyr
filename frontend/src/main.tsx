@@ -26,6 +26,8 @@ import { useHistoryWindow } from "./use-history-window";
 import { api, mainSession, RecordData, date } from "./api";
 import { Resources } from "./resources";
 import { Markdown } from "./markdown";
+import { LiveMarkdown } from "./live-markdown";
+import { LiveTextFeed } from "./live-text-data";
 import { LiveActivity } from "./live-activity";
 import { ActivityFeed } from "./live-activity-data";
 import { UsageProvider, UsageBadge } from "./usage";
@@ -405,6 +407,7 @@ function Chat({
     [kind, setKind] = useState("");
   const [generation, setGeneration] = useState(0);
   const activityFeed = useMemo(() => new ActivityFeed(), [session, generation]);
+  const textFeed = useMemo(() => new LiveTextFeed(), [session, generation]);
   const [loaded, setLoaded] = useState(false);
   const memoryTrigger = useRef<HTMLButtonElement>(null);
   const [controlBusy, setControlBusy] = useState(false);
@@ -496,8 +499,14 @@ function Chat({
         // Snapshot first, then resume at its cursor. Events committed while
         // the HTTP request was in flight are replayed exactly once by SSE.
         stream = new EventSource(
-          `/api/events?activity=live&view=chat&session_id=${session}&after=${replayCursor.current}`,
+          `/api/events?activity=live&view=chat&text=live&session_id=${session}&after=${replayCursor.current}`,
         );
+        stream.addEventListener("fragment", (e) => {
+          if (!disposed) textFeed.append(JSON.parse((e as MessageEvent).data));
+        });
+        // Discard uncommitted projections across reconnection. SSE resumes only
+        // from durable IDs, then offsets reconcile subsequent live fragments.
+        stream.onerror = () => textFeed.clear();
         stream.onmessage = (e) => {
           buffer.push(JSON.parse(e.data));
           if (!flush)
@@ -506,6 +515,7 @@ function Chat({
               buffer = [];
               flush = undefined;
               activityFeed.update(batch);
+              textFeed.settle(batch);
               const historyBatch = batch.filter(
                 (ev) =>
                   ev.type !== "activity" && ev.id > (replayCursor.current ?? 0),
@@ -540,7 +550,7 @@ function Chat({
                 window.dispatchEvent(new Event("fluxyr:usage"));
                 refreshJobs();
               }
-            }, 100);
+            }, 50);
         };
       } catch (e: any) {
         if (!disposed) onError(e.message);
@@ -553,8 +563,9 @@ function Chat({
       stream?.close();
       sessionPoller.stop();
       clearTimeout(flush);
+      textFeed.dispose();
     };
-  }, [session, load, refreshJobs, generation, activityFeed, onError]);
+  }, [session, load, refreshJobs, generation, activityFeed, textFeed, onError]);
   const timeline = useMemo(
     () => buildTimeline(messages, events),
     [messages, events],
@@ -870,6 +881,9 @@ function Chat({
                         key={item.id}
                         text={item.text}
                         live={!!item.live}
+                        feed={textFeed}
+                        block={item.id}
+                        end={item.textEnd}
                       />
                     ) : (
                       <div key={item.id} className={"message " + item.kind}>
@@ -897,7 +911,13 @@ function Chat({
                               "message-text" + (item.live ? " streaming" : "")
                             }
                           >
-                            <Markdown>{item.text}</Markdown>
+                            <LiveMarkdown
+                              feed={textFeed}
+                              block={item.id}
+                              text={item.text}
+                              end={item.textEnd}
+                              live={!!item.live}
+                            />
                             {item.live && (
                               <Spinner
                                 size="MD"
@@ -1033,7 +1053,19 @@ function Chat({
     </div>
   );
 }
-function Reasoning({ text, live }: { text: string; live: boolean }) {
+function Reasoning({
+  text,
+  live,
+  feed,
+  block,
+  end,
+}: {
+  text: string;
+  live: boolean;
+  feed: LiveTextFeed;
+  block: string;
+  end?: number;
+}) {
   const [expanded, setExpanded] = useState(live);
   return (
     <details
@@ -1045,7 +1077,17 @@ function Reasoning({ text, live }: { text: string; live: boolean }) {
         <BrainCircuit size={14} /> {live ? "Reasoning…" : "Reasoning"}
         <span className="reasoning-hint">{live ? "LIVE" : "VIEW TRACE"}</span>
       </summary>
-      <Markdown>{text || "Waiting for the model…"}</Markdown>
+      {text || live ? (
+        <LiveMarkdown
+          feed={feed}
+          block={block}
+          text={text}
+          end={end}
+          live={live}
+        />
+      ) : (
+        <Markdown>Waiting for the model…</Markdown>
+      )}
     </details>
   );
 }

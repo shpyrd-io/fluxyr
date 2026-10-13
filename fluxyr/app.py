@@ -471,31 +471,59 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
         )
 
         request_compact = request.args.get("view") == "chat"
+        request_live_text = request.args.get("text") == "live"
 
         def generate():
             cursor = after
-            # Polls use short transactions; no DB connection is held by an idle browser.
-            while True:
-                records = engine.store.events(
-                    sid, cursor, activity_after=activity_after
-                )
-                for event in records:
-                    cursor = event["id"]
-                    if request_compact:
-                        from .history import HIDDEN, compact_event
+            signal = engine.db.event_signal
+            with (
+                signal.subscribe(sid) as ready,
+                engine.db.live_text.subscribe(
+                    sid, ready, enabled=request_live_text
+                ) as live,
+            ):
+                revision, deadline, more = -1, 0, False
+                while True:
+                    # Subscribe/clear BEFORE reading so a commit between the
+                    # query and wait cannot be lost. No connection stays open
+                    # while the client is idle or receiving a response.
+                    ready.clear()
+                    records = []
+                    read_durable = (
+                        more
+                        or ready.revision != revision
+                        or time.monotonic() >= deadline
+                    )
+                    if read_durable:
+                        revision = ready.revision
+                        records = engine.store.events(
+                            sid, cursor, activity_after=activity_after
+                        )
+                        deadline = time.monotonic() + signal.fallback_seconds
+                    for event in records:
+                        cursor = event["id"]
+                        if request_compact:
+                            from .history import HIDDEN, compact_event
 
-                        if event["type"] in HIDDEN and event["type"] not in {
-                            "activity",
-                            "usage",
-                        }:
-                            continue
-                        event = compact_event(event)
-                    yield f"id: {cursor}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
-                if not records:
-                    # Do not rescan a tail containing only omitted progress marks.
-                    cursor = max(cursor, activity_after or 0)
-                    yield ": heartbeat\n\n"
-                    time.sleep(1)
+                            if event["type"] in HIDDEN and event["type"] not in {
+                                "activity",
+                                "usage",
+                            }:
+                                continue
+                            event = compact_event(event)
+                        yield f"id: {cursor}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
+                    if read_durable and not records:
+                        # Do not rescan a tail containing only omitted progress marks.
+                        cursor = max(cursor, activity_after or 0)
+                    for fragment in live.drain():
+                        # No SSE id: speculative text must NEVER advance the
+                        # browser's Last-Event-ID / durable reconnect cursor.
+                        yield f"event: fragment\ndata: {json.dumps(fragment, ensure_ascii=False)}\n\n"
+                    more = len(records) == engine.store.event_page_size
+                    if read_durable and not more:
+                        yield ": heartbeat\n\n"
+                    if not more:
+                        ready.wait(max(0, deadline - time.monotonic()))
 
         return Response(
             generate(),

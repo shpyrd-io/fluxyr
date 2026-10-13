@@ -58,6 +58,44 @@ they do not change tool availability or permissions.
 Streaming assistant text uses Scificn's ASCII spinner (120 ms frames) and removes
 it when the stream closes. Reduced-motion preference disables frame cycling.
 
+Live SSE connections subscribe to in-process notifications for their session.
+After an event transaction commits, waiting connections read the next durable
+events immediately; they do not hold a database connection while waiting. A
+10-second timeout provides heartbeats and catches writes from other processes.
+Immediate notifications apply to the default embedded worker and HTTP server
+sharing the same Database instance. No extra service is required.
+
+The UI also opts into `GET /api/events?...&text=live`. This sends named `fragment`
+SSE events directly from provider callbacks, without waiting for a database write
+or introducing a transmission timer. These events have **no SSE id** and never
+advance `Last-Event-ID`. Each carries `job_id`, `type` (`delta` or `reasoning`),
+and a payload with `block_id`, `text`, `text_offset`, and `text_end`. Offsets use
+UTF-16 code units to match browser string indexing, including emoji. Persisted
+text events retain the same offsets; the client displays only the live suffix
+beyond the saved text. Old records without offsets and clients without this
+opt-in retain durable-only replay.
+
+Live fragments update only the active message at animation-frame cadence;
+history and the execution graph continue to use batched durable events. Finished
+Markdown messages are memoized. Reconnection discards speculative tails and
+replays from the durable cursor. Missing prefixes (joining mid-stream or queue
+overflow) wait for persistence rather than displaying text across a gap.
+
+Persistence remains independent of viewers: ActivityEmitter batches adjacent
+fragments nominally every 250 ms as provider events arrive and flushes at block
+boundaries and execution settlement. Scheduled, reactive and worker routines
+save their text even with no browser open. Opening an execution later loads its
+saved history; live content is scoped to its own session, without exposing child
+text in the main conversation. There is no background persistence writer tied to
+the lifetime of an HTTP connection.
+
+Each connected reader has a bounded 128 KiB live queue, released on disconnect.
+Slow readers may miss speculative fragments but recover saved content. The UI
+bounds live tails to 128 blocks of 65,536 UTF-16 units each, discards tails when
+blocks/executions finish, and stops scheduled frames on unmount. With no viewers,
+no live queue is retained. A process crash can lose the uncommitted suffix that
+was already visible; interrupted executions fall back to the durable history.
+
 Validation: TypeScript and production Vite build; four existing timeline tests;
 browser inspection of workbench, memory dialog, skill controls, Tools search and
 parameter expansion, files, routines, vault and settings. Responsive layouts

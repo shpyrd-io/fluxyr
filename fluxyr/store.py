@@ -25,6 +25,8 @@ TERMINAL = {"succeeded", "failed", "cancelled", "interrupted"}
 
 
 class Store:
+    event_page_size = 300
+
     def __init__(self, db):
         self.db = db
         self.file_skills = []
@@ -88,7 +90,7 @@ class Store:
                 )
             return [
                 {**row_dict(x), "payload": restore_tool_identity(x.type, x.payload)}
-                for x in s.scalars(query.order_by(Event.id).limit(300))
+                for x in s.scalars(query.order_by(Event.id).limit(self.event_page_size))
             ]
 
     def snapshot(self, s):
