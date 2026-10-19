@@ -10,7 +10,6 @@ import {
   Clock3,
   KeyRound,
   FileKey2,
-  Search,
   ChevronRight,
   Pencil,
   Trash2,
@@ -25,6 +24,7 @@ import {
   DialogDescription,
   DialogBody,
 } from "./ui/dialog/dialog";
+import { CatalogueSearch } from "./catalogue";
 import { Actions } from "./resources";
 import { VaultForm, vaultKinds as kinds } from "./vault-form";
 import { CronEditor } from "./cron-editor";
@@ -166,15 +166,11 @@ export function ResourceCatalogue({ page, onError, open }: Props) {
   return (
     <div className="resource-catalogue">
       <div className="catalogue-toolbar">
-        <Label className="catalogue-search">
-          <Search size={15} />
-          <Input
-            aria-label={`Search ${page.toLowerCase()}`}
-            placeholder={`Search ${page.toLowerCase()}…`}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </Label>
+        <CatalogueSearch
+          label={`Search ${page.toLowerCase()}`}
+          value={query}
+          onChange={setQuery}
+        />
         <SelectField
           aria-label={`Filter ${page.toLowerCase()}`}
           value={filter}

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="theme-color" content="#090c14" />
+    <meta name="theme-color" content="#1c1c1e" />
     <script>
       // Resolve before the first paint, including when storage is unavailable.
       (() => {
@@ -22,7 +22,7 @@
         document.documentElement.dataset.themeMode = mode;
         document.documentElement.style.colorScheme = theme;
         document.querySelector('meta[name="theme-color"]').content =
-          theme === "dark" ? "#090c14" : "#f6f7fb";
+          theme === "dark" ? "#1c1c1e" : "#ffffff";
       })();
     </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.13 — 2026-10-19
+
+- Refresh the interface with neutral light/dark surfaces, system typography and centralized component styling. Refine the Fluxyr logo alignment, theme selector, form controls, dialogs and status indicators.
+- Align Executions, Tools and Files with the resource catalogues: clearer row hierarchy, shared search and empty states, execution status filtering, expandable tool schemas and a full-width file list that makes room for previews and editing.
+- Preserve compact conversation headers, execution navigation and responsive layouts; remove decorative colored card edges and replace the loading indicator's render timer with CSS animation.
+
 ## 0.9.12 — 2026-10-12
 
 - Compact the main header and combine session identity, live state indicator, and conversation actions into one toolbar, removing the duplicate breadcrumb and title.

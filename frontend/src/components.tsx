@@ -1,14 +1,13 @@
 import React from "react";
-import { Button as ScificnButton, type ButtonProps } from "./ui/button/button";
+import { Button as BaseButton, type ButtonProps } from "./ui/button/button";
 import symbol from "../../assets/symbol.svg";
-import wordmark from "../../assets/logo-text.svg";
 export { Badge } from "./ui/badge/badge";
 export { Panel, PanelHeader, PanelTitle, PanelContent } from "./ui/panel/panel";
 export { Input } from "./ui/input/input";
 export { Textarea } from "./ui/textarea/textarea";
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className = "", variant, type = "button", ...props }, ref) => (
-    <ScificnButton
+    <BaseButton
       ref={ref}
       type={type}
       variant={
@@ -33,7 +32,7 @@ export function Logo({ className = "" }: { className?: string }) {
   );
 }
 export function Wordmark() {
-  return <img className="wordmark" src={wordmark} alt="Fluxyr" />;
+  return <span className="wordmark">Fluxyr</span>;
 }
 export function DebugId({ id, label = "job" }: { id: string; label?: string }) {
   if (!id) return null;

@@ -3,17 +3,17 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-const typographyVariants = cva("font-mono", {
+const typographyVariants = cva("font-sans", {
   variants: {
     variant: {
-      H1: "text-3xl font-bold uppercase tracking-[0.15em] text-[var(--color-green)] text-shadow-[var(--text-glow-green)]",
-      H2: "text-2xl font-semibold uppercase tracking-[0.12em] text-[var(--color-green)]",
-      H3: "text-xl font-semibold uppercase tracking-[0.1em] text-[var(--text-secondary)]",
-      H4: "text-base font-medium uppercase tracking-widest text-[var(--text-secondary)]",
+      H1: "text-3xl font-bold text-[var(--text-secondary)]",
+      H2: "text-2xl font-semibold text-[var(--text-secondary)]",
+      H3: "text-xl font-semibold text-[var(--text-secondary)]",
+      H4: "text-base font-medium text-[var(--text-secondary)]",
       P: "text-sm leading-relaxed text-[var(--text-secondary)]",
       LEAD: "text-base leading-relaxed text-[var(--text-secondary)] opacity-90",
       MUTED: "text-xs text-[var(--text-muted)]",
-      CODE: "text-sm bg-[var(--surface-raised)] border border-[var(--border)] px-1.5 py-0.5 text-[var(--color-green)] inline-block",
+      CODE: "font-mono rounded text-sm bg-[var(--surface-raised)] border border-[var(--border)] px-1.5 py-0.5 text-[var(--text-secondary)] inline-block",
     },
   },
   defaultVariants: { variant: "P" },

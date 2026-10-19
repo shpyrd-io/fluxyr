@@ -53,6 +53,7 @@ export function ThemeSelector() {
     <Select value={mode} onValueChange={change}>
       <SelectTrigger
         className="theme-trigger"
+        showIndicator={false}
         aria-label={`Theme: ${selected.label}`}
         title={`Theme: ${selected.label}`}
       >

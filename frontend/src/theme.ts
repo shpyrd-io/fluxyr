@@ -20,5 +20,5 @@ export function applyTheme(mode: ThemeMode, systemDark: boolean) {
   document.documentElement.style.colorScheme = resolved;
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute("content", resolved === "dark" ? "#090c14" : "#f6f7fb");
+    ?.setAttribute("content", resolved === "dark" ? "#1c1c1e" : "#ffffff");
 }

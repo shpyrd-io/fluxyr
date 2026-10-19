@@ -4,14 +4,35 @@ import { Switch } from "./ui/switch/switch";
 import { Separator } from "./ui/separator/separator";
 import { SelectField, SelectOption } from "./form-select";
 import { Label } from "./ui/label/label";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { api, RecordData, date } from "./api";
 import { Button, Input, Textarea, Panel, Badge } from "./components";
-import { Wrench, KeyRound, Clock3, Folder, FileCode2, Trash2 } from "lucide-react";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody,
+  Wrench,
+  KeyRound,
+  Clock3,
+  Folder,
+  FileCode2,
+  Trash2,
+  ArrowUp,
+  Plus,
+  Upload,
+  Eye,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogBody,
 } from "./ui/dialog/dialog";
 
+import {
+  CatalogueSearch,
+  CatalogueIdentity,
+  CatalogueEmpty,
+} from "./catalogue";
 import { ResourceCatalogue } from "./resource-catalogue";
 import { ToolCatalogue } from "./tool-catalogue";
 import { LocalFilePreview } from "./local-file-preview";
@@ -26,10 +47,12 @@ const descriptions: Record<string, string> = {
   Tools:
     "The tools currently available to your agent, with their actual input schemas.",
   Skills: "Instructions and versioned Python actions your agent can use.",
-  Routines: "Tasks triggered manually, on a schedule, by webhooks or continuous workers.",
+  Routines:
+    "Tasks triggered manually, on a schedule, by webhooks or continuous workers.",
   Vault: "Encrypted secrets, OAuth connections and client certificates.",
   Files: "Your agent’s local data directory. No remote storage.",
-  Settings: "Inspect the configuration loaded from your application environment.",
+  Settings:
+    "Inspect the configuration loaded from your application environment.",
 };
 export function Resources({ page, onError, open }: Props) {
   return (
@@ -270,23 +293,48 @@ export function Actions({
 }
 function Settings({ onError }: { onError: (s: string) => void }) {
   const [config, setConfig] = useState<RecordData | null>(null);
-  useEffect(() => { api("/settings").then(setConfig).catch(e => onError(e.message)); }, [onError]);
+  useEffect(() => {
+    api("/settings")
+      .then(setConfig)
+      .catch((e) => onError(e.message));
+  }, [onError]);
   if (!config) return <p>Loading settings…</p>;
   const fields: [string, string][] = [
-    ["provider", "FLUXYR_PROVIDER"], ["model", "FLUXYR_MODEL"],
+    ["provider", "FLUXYR_PROVIDER"],
+    ["model", "FLUXYR_MODEL"],
     ["agent_name", "FLUXYR_AGENT_NAME"],
-    ["provider_endpoint", "FLUXYR_PROVIDER_ENDPOINT"], ["provider_format", "FLUXYR_PROVIDER_FORMAT"], ["max_tokens", "FLUXYR_MAX_TOKENS"],
-    ["reasoning_effort", "FLUXYR_REASONING_EFFORT"], ["thinking_mode", "FLUXYR_THINKING_MODE"],
+    ["provider_endpoint", "FLUXYR_PROVIDER_ENDPOINT"],
+    ["provider_format", "FLUXYR_PROVIDER_FORMAT"],
+    ["max_tokens", "FLUXYR_MAX_TOKENS"],
+    ["reasoning_effort", "FLUXYR_REASONING_EFFORT"],
+    ["thinking_mode", "FLUXYR_THINKING_MODE"],
     ["thinking_budget", "FLUXYR_THINKING_BUDGET"],
   ];
-  return <div className="panel settings">
-    <h2>Environment configuration</h2>
-    <p>Edit your application’s .env or deployment environment, then restart to apply changes.</p>
-    {fields.map(([key, variable]) => <Label key={key}>{variable}<Input readOnly value={String(config[key] ?? "")} /></Label>)}
-    <Separator />
-    <p>{config.provider.toUpperCase()}_API_KEY: {config.configured_keys?.[config.provider] ? "Configured" : "Not configured"}</p>
-    <p className="muted">Credential values are never returned by this screen.</p>
-  </div>;
+  return (
+    <div className="panel settings">
+      <h2>Environment configuration</h2>
+      <p>
+        Edit your application’s .env or deployment environment, then restart to
+        apply changes.
+      </p>
+      {fields.map(([key, variable]) => (
+        <Label key={key}>
+          {variable}
+          <Input readOnly value={String(config[key] ?? "")} />
+        </Label>
+      ))}
+      <Separator />
+      <p>
+        {config.provider.toUpperCase()}_API_KEY:{" "}
+        {config.configured_keys?.[config.provider]
+          ? "Configured"
+          : "Not configured"}
+      </p>
+      <p className="muted">
+        Credential values are never returned by this screen.
+      </p>
+    </div>
+  );
 }
 function Files({ onError }: { onError: (s: string) => void }) {
   const [path, setPath] = useState("."),
@@ -296,6 +344,15 @@ function Files({ onError }: { onError: (s: string) => void }) {
     [deleting, setDeleting] = useState<RecordData | null>(null),
     [deleteBusy, setDeleteBusy] = useState(false),
     [deleteError, setDeleteError] = useState("");
+  const [query, setQuery] = useState("");
+  const uploadInput = useRef<HTMLInputElement>(null);
+  const visibleItems = items.filter((item) =>
+    item.name.toLowerCase().includes(query.toLowerCase()),
+  );
+  function navigate(nextPath: string) {
+    setPath(nextPath);
+    setQuery("");
+  }
   const load = useCallback(
     () =>
       api("/files?path=" + encodeURIComponent(path))
@@ -321,16 +378,16 @@ function Files({ onError }: { onError: (s: string) => void }) {
   }
   return (
     <>
-      <div className="resource-toolbar">
-        <span className="path">./data/{path === "." ? "" : path}</span>
+      <div className="catalogue-toolbar files-toolbar">
+        <CatalogueSearch
+          label="Search files"
+          value={query}
+          onChange={setQuery}
+        />
+        <span className="catalogue-count">
+          {visibleItems.length}/{items.length}
+        </span>
         <div className="actions">
-          <Button
-            onClick={() =>
-              setPath(path.split("/").slice(0, -1).join("/") || ".")
-            }
-          >
-            ↑ Parent
-          </Button>
           <Button
             onClick={() => {
               const name = prompt("New file name");
@@ -341,61 +398,95 @@ function Files({ onError }: { onError: (s: string) => void }) {
                 });
             }}
           >
-            + File
+            <Plus size={14} /> New file
           </Button>
-          <Label className="button">
+          <Button onClick={() => uploadInput.current?.click()}>
+            <Upload size={14} />
             Upload
-            <Input
-              type="file"
-              hidden
-              onChange={async (e) => {
-                const f = e.target.files?.[0];
-                if (!f) return;
-                const form = new FormData();
-                form.append("file", f);
-                form.append("path", (path === "." ? "" : path + "/") + f.name);
-                try {
-                  const r = await fetch("/api/files/upload", {
-                    method: "POST",
-                    body: form,
-                  });
-                  if (!r.ok) throw new Error((await r.json()).error);
-                  load();
-                } catch (e: any) {
-                  onError(e.message);
-                }
-              }}
-            />
-          </Label>
+          </Button>
+          <input
+            ref={uploadInput}
+            aria-label="Upload file"
+            type="file"
+            hidden
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              if (!f) return;
+              const form = new FormData();
+              form.append("file", f);
+              form.append("path", (path === "." ? "" : path + "/") + f.name);
+              try {
+                const r = await fetch("/api/files/upload", {
+                  method: "POST",
+                  body: form,
+                });
+                if (!r.ok) throw new Error((await r.json()).error);
+                load();
+              } catch (e: any) {
+                onError(e.message);
+              }
+            }}
+          />
         </div>
       </div>
-      <div className="file-layout">
-        <div className="panel file-list">
-          {items.length === 0 && (
-            <p className="muted">This directory is empty.</p>
+      <div className="file-location">
+        <Button
+          variant="GHOST"
+          aria-label="Parent folder"
+          title="Parent folder"
+          disabled={path === "."}
+          onClick={() =>
+            navigate(path.split("/").slice(0, -1).join("/") || ".")
+          }
+        >
+          <ArrowUp size={16} />
+        </Button>
+        <Folder size={15} aria-hidden="true" />
+        <span>data{path === "." ? "" : "/" + path}</span>
+      </div>
+      <div className={`file-layout${file || preview ? " has-preview" : ""}`}>
+        <div className="catalogue-list file-list">
+          {visibleItems.length === 0 && (
+            <CatalogueEmpty
+              icon={Folder}
+              title={query ? "No matching files" : "This folder is empty"}
+            >
+              {query
+                ? "Try another file name."
+                : "Upload a file or create a new one to get started."}
+            </CatalogueEmpty>
           )}
-          {items.map((item) => (
+          {visibleItems.map((item) => (
             <div className="file-row" key={item.path}>
               <Button
+                title={item.path}
                 onClick={() =>
-                  item.directory ? setPath(item.path) : edit(item.path)
+                  item.directory ? navigate(item.path) : edit(item.path)
                 }
               >
-                {item.directory ? (
-                  <Folder size={15} />
-                ) : (
-                  <FileCode2 size={15} />
-                )}
-                {item.name}
+                <CatalogueIdentity
+                  icon={item.directory ? Folder : FileCode2}
+                  title={item.name}
+                >
+                  {item.directory
+                    ? "Folder"
+                    : item.name.split(".").length > 1
+                      ? `${item.name.split(".").pop().toUpperCase()} file`
+                      : "File"}
+                </CatalogueIdentity>
               </Button>
               {!item.directory && (
                 <Button
+                  aria-label={`Preview ${item.name}`}
+                  title={`Preview ${item.name}`}
+                  className="file-preview-button"
                   onClick={() => {
                     setPreview(filePreviewUrl(item.path));
                     setFile(null);
                   }}
                 >
-                  Preview ↗
+                  <Eye size={14} />
+                  <span>Preview</span>
                 </Button>
               )}
               <Button
@@ -443,7 +534,11 @@ function Files({ onError }: { onError: (s: string) => void }) {
           </form>
         )}
         {preview && (
-          <LocalFilePreview url={preview} title={decodeURIComponent(preview.slice("/preview/".length))} onClose={() => setPreview("")} />
+          <LocalFilePreview
+            url={preview}
+            title={decodeURIComponent(preview.slice("/preview/".length))}
+            onClose={() => setPreview("")}
+          />
         )}
       </div>
       <Dialog
@@ -462,7 +557,11 @@ function Files({ onError }: { onError: (s: string) => void }) {
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            {deleteError && <p role="alert" className="form-error">{deleteError}</p>}
+            {deleteError && (
+              <p role="alert" className="form-error">
+                {deleteError}
+              </p>
+            )}
             <div className="dialog-actions">
               <Button disabled={deleteBusy} onClick={() => setDeleting(null)}>
                 Cancel
@@ -476,10 +575,16 @@ function Files({ onError }: { onError: (s: string) => void }) {
                   setDeleteError("");
                   try {
                     await api("/files/operation", "POST", {
-                      operation: "delete", path: deleting.path,
+                      operation: "delete",
+                      path: deleting.path,
                     });
                     if (file?.path === deleting.path) setFile(null);
-                    const deletedPreview = "/preview/" + deleting.path.split("/").map(encodeURIComponent).join("/");
+                    const deletedPreview =
+                      "/preview/" +
+                      deleting.path
+                        .split("/")
+                        .map(encodeURIComponent)
+                        .join("/");
                     if (preview === deletedPreview) setPreview("");
                     setDeleting(null);
                     await load();
@@ -490,7 +595,11 @@ function Files({ onError }: { onError: (s: string) => void }) {
                   }
                 }}
               >
-                {deleteBusy ? "Deleting…" : deleting?.directory ? "Delete folder" : "Delete file"}
+                {deleteBusy
+                  ? "Deleting…"
+                  : deleting?.directory
+                    ? "Delete folder"
+                    : "Delete file"}
               </Button>
             </div>
           </DialogBody>

@@ -24,6 +24,7 @@ import React, {
 import { createRoot } from "react-dom/client";
 import { useHistoryWindow } from "./use-history-window";
 import { api, mainSession, RecordData, date } from "./api";
+import { ExecutionCatalogue } from "./execution-catalogue";
 import { Resources } from "./resources";
 import { Markdown } from "./markdown";
 import { LiveMarkdown } from "./live-markdown";
@@ -69,7 +70,6 @@ import {
   ArrowUpRight,
   BrainCircuit,
   Eraser,
-  RefreshCw,
   UserRound,
   Cpu,
   PanelLeftClose,
@@ -80,8 +80,9 @@ import "@fontsource/ibm-plex-mono/latin-500.css";
 import "@fontsource/ibm-plex-mono/latin-600.css";
 import "@fontsource/ibm-plex-mono/latin-700.css";
 import { Spinner } from "./ui/spinner/spinner";
-import "./styles/scificn.css";
+import "./styles/base.css";
 import "./styles/themes.css";
+import "./styles/components.css";
 import "./style.css";
 
 type Page =
@@ -201,7 +202,7 @@ function App() {
               {agentName}
             </span>
           </div>
-          <p className="nav-heading">WORKSPACE</p>
+          <p className="nav-heading">Workspace</p>
           <nav aria-label="Main navigation">
             {pages.map((p, i) => (
               <Button
@@ -246,7 +247,7 @@ function App() {
             />
             <Separator />
             <div className="instance-footer">
-              ENGINE VERSION{" "}
+              Engine version{" "}
               <span>{engineVersion ? `v${engineVersion}` : "—"}</span>
             </div>
           </div>
@@ -299,9 +300,9 @@ function App() {
               <span className="local-label">
                 <span className={"dot " + (ready ? "online" : "")} />
                 {ready
-                  ? "SYSTEM ONLINE"
+                  ? "System online"
                   : workerState === "recovering"
-                    ? "RECONNECTING WORKER"
+                    ? "Reconnecting worker"
                     : workerState.toUpperCase()}
               </span>
               <ThemeSelector />
@@ -324,49 +325,7 @@ function App() {
               onError={setError}
             />
           ) : page === "Executions" ? (
-            <div className="page">
-              <div className="page-title">
-                <div>
-                  <p className="eyebrow">OBSERVABILITY</p>
-                  <Typography variant="H1">Executions</Typography>
-                  <p>Separate contexts. One place to see what happened.</p>
-                </div>
-                <Button onClick={refresh}>
-                  <RefreshCw size={14} />
-                  Refresh
-                </Button>
-              </div>
-              <div className="table">
-                <div className="table-head">
-                  <span>Execution</span>
-                  <span>Status</span>
-                  <span>Created</span>
-                </div>
-                {jobs
-                  .filter((j) => j.session_id !== mainSession)
-                  .map((j) => (
-                    <Button
-                      className="table-row"
-                      key={j.id}
-                      onClick={() => open(j.session_id)}
-                    >
-                      <span>
-                        <strong>{j.prompt.slice(0, 100)}</strong>
-                        <DebugId id={j.id} />
-                      </span>
-                      <Status status={j.status} />
-                      <span>{date(j.created_at)}</span>
-                    </Button>
-                  ))}
-                {jobs.filter((j) => j.session_id !== mainSession).length ===
-                  0 && (
-                  <Empty
-                    title="No executions yet"
-                    text="Run a routine or test a Python action to start an isolated execution."
-                  />
-                )}
-              </div>
-            </div>
+            <ExecutionCatalogue jobs={jobs.filter(j => j.session_id !== mainSession)} refresh={refresh} open={open} />
           ) : (
             <Resources page={page} onError={setError} open={open} />
           )}

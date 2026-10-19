@@ -1,10 +1,29 @@
 # Fluxyr interface
 
-The frontend vendors the actual Scificn Button, Badge, Panel, Card, Input, Textarea,
-Label, Select, Checkbox, Switch, Separator, StatusGrid, Typography, Breadcrumb,
-Dialog and ASCII Spinner components from https://www.scificn.dev/r. Registry
-hashes and the source theme revision are in `frontend/src/ui/scificn-source.json`;
-local adaptations are described in NOTICE.
+The interface uses Tailwind v4, Radix behavior primitives and a small, local
+component library in `frontend/src/ui`. Its neutral surfaces, system typography,
+compact navigation and soft controls are inspired by native Mac applications.
+The Fluxyr brand accent comes from `fluxyr.com` (`#4a3ec7`); it is reserved for
+primary actions, links, selection and focus. The original component ancestry is
+recorded in NOTICE and `frontend/src/ui/scificn-source.json`.
+
+## Where to change the design
+
+| File | Responsibility |
+| --- | --- |
+| `frontend/src/styles/themes.css` | Shared semantic colors, radii, control height, sidebar width and page spacing; light/dark palettes. |
+| `frontend/src/styles/base.css` | Tailwind entrypoint, font families, reset, animations and reduced-motion behavior. |
+| `frontend/src/styles/components.css` | Appearance of reusable buttons, inputs, textareas, selects, labels, cards, panels, dialogs, badges, switches, checkboxes, breadcrumbs and runtime indicators. |
+| `frontend/src/catalogue.tsx` | Shared search, row identity and empty-state composition for resource lists. |
+| `frontend/src/ui/` | React component structure and accessible Radix behavior. Keep visual decisions in the shared CSS. |
+| `frontend/src/style.css` | Screen composition: sidebar, conversation, execution graph, catalogues and responsive layouts. |
+
+Import a shared primitive rather than recreating a control inside a page. Use
+semantic variables instead of literal colors or per-page theme overrides. The
+existing Button/Badge variant names remain compatible with application callers.
+Code, paths, IDs and payloads retain a monospace font; normal interface and
+conversation text use the platform sans-serif stack. No hosted font service is
+required.
 
 ## Appearance
 
@@ -13,50 +32,38 @@ Use the theme icon at the right of the header, beside the system status, to choo
 system's appearance, including changes while the page is open. The preference is
 saved in this browser and shared across tabs; no server setting is required.
 
-Both themes cover the chat, execution sequence, forms, dialogs, navigation and
-status colors. The logo wordmark adapts to the background. Colors are defined as
-shared semantic tokens in `frontend/src/styles/themes.css`; component layout
-overrides live in `frontend/src/style.css`. The initial theme is applied before
-the app renders to avoid a flash of the wrong background.
+Both themes cover chat, execution sequence, forms, popovers, dialogs and navigation.
+The initial theme is resolved before React renders. The icon-only session status
+retains accessible text, and the compact session toolbar keeps the session ID and
+actions without a duplicate heading. Reduced-motion preference disables animation.
 
 The opt-in `tests/test_theme_ui.py` browser test checks system changes, explicit
 overrides, persistence after reload, keyboard selection and the mobile control.
 
-## Component consistency review
+## Component consistency
 
-The workflow uses Card/Header/Title/Content for each persisted node, preserving
-fork/join connectors and navigation back to the conversation. Forms and filters
-use Radix-backed Scificn Select, labels, checkboxes and switches; inputs and
-textareas keep their original Scificn primitives. IBM Plex Mono is hosted locally
-and used throughout the interface. Breadcrumb and the local worker/jobs StatusGrid
-use the upstream components. Fluxyr's purple palette and supplied logo are retained.
+The workflow uses Card/Header/Title/Content for persisted nodes, preserving
+fork/join connectors and navigation back to the conversation. Forms use shared
+Radix Select, Checkbox, Switch and Dialog components, with labels and field IDs.
+Dialogs keep focus management and Escape dismissal; changing a form field never
+saves it automatically. Switches have a visible thumb and checkboxes a checkmark.
 
-All execution/tool failure badges use the shared Status component: `error` and
+Execution/tool failure badges use the shared Status component: `error` and
 `failed` both display **Failed** in red; `succeeded` and `completed` display
 **Completed**. Backend state values remain unchanged. Runtime stdout and dependency
-installation events stay persisted but no longer become conversation entries.
-They are available under **Diagnostics**, with execution and call IDs. Tool details
-still expose structured results; execution/build links use the Fluxyr avatar.
+installation events remain available under **Diagnostics**, with execution and
+call IDs, rather than becoming conversation entries.
 
-Browser validation covered dropdown keyboard selection, weekly cron checkboxes,
-enable-switch state, cancellation without saving, PEM upload/text fields, and
-the existing failed event 17474. Its badge computed color is #ef909a; the timeline
-has no horizontal overflow at the inspected desktop size. Diagnostics shows the
-original runner logs while the conversation contains no inline progress logs.
-19 frontend tests and the production TypeScript/Vite build passed. No new model
-calls or changes to production resources were made for this UI validation.
-
-Fluxyr overrides the library tokens in `frontend/src/styles/themes.css`, using the supplied
-`assets/symbol.svg` and `assets/logo-text.svg`. The symbol is white on #756ce0
-(rgb 117, 108, 224), with rounded corners. Fonts are bundled locally.
-
-Tools are displayed as compact grouped rows with plain-language summaries,
-search/category filtering and expandable parameter tables. The original tool
-schema and full description remain available. Categories are navigation aids;
-they do not change tool availability or permissions.
-
-Streaming assistant text uses Scificn's ASCII spinner (120 ms frames) and removes
-it when the stream closes. Reduced-motion preference disables frame cycling.
+Tools, Executions and Files follow the same list hierarchy as Skills, Routines
+and Vault: neutral surfaces, an icon and title, secondary metadata, and controls
+aligned on the right. Shared catalogue components keep search and row identity
+consistent. Tools retain category filtering, parameter tables and full JSON
+schemas. Executions offer search and status filtering over the loaded jobs and
+open the original conversation. Files use the full width until an editor or
+preview opens, preserving upload, download, editing and deletion confirmation.
+Categories and filters do not change availability or permissions.
+Streaming text uses a CSS-animated loading icon, removed when the stream closes;
+it does not schedule React renders for animation frames.
 
 Live SSE connections subscribe to in-process notifications for their session.
 After an event transaction commits, waiting connections read the next durable
@@ -259,7 +266,7 @@ to the workbench. This uses a separate schema and workspace. Evidence:
 
 Routine editing supports manual, minute intervals, hourly, daily, weekly, and monthly schedules. The visual controls translate to cron and recognize equivalent common expressions; advanced expressions are preserved verbatim. A read-only preview computes the next three occurrences with the scheduler's timezone rules. Changes, including weekday and enable checkboxes, remain drafts until Save routine; Cancel discards them. Verified in the browser by changing weekdays and enabled state, cancelling, and reopening the original manual routine. Frontend round-trip tests and PostgreSQL preview tests cover custom expressions, invalid schedules, timezones, month boundaries, and DST. The model header displays only the dollar amount, with $0.00 when unavailable.
 
-The workbench's `01 > Agent console` session heading uses the vendored Scificn Breadcrumb, alongside the toolbar breadcrumb. Explicit parallel batches render inside a Scificn Card containing branch cards and a join footer; failures propagate to the enclosing batch status. Per-call version IDs appear in both chat tool cards and the graph. Rendering comes from durable batch/tool events, so reopening the session retains grouping. Sequential historical batches are not relabelled parallel. Verified in the browser against the real MiniMax probe; no horizontal overflow in the graph or batch card. Regression checks: 20 frontend tests, production build, 26 focused PostgreSQL backend tests.
+The main toolbar uses the shared Breadcrumb; the session toolbar shows only session identity, status and actions. Explicit parallel batches render inside a shared Card containing branch cards and a join footer; failures propagate to the enclosing batch status. Per-call version IDs appear in both chat tool cards and the graph. Rendering comes from durable batch/tool events, so reopening the session retains grouping. Sequential historical batches are not relabelled parallel. Verified in the browser against the real MiniMax probe; no horizontal overflow in the graph or batch card. Regression checks: 20 frontend tests, production build, 26 focused PostgreSQL backend tests.
 
 ## Long conversation rendering
 

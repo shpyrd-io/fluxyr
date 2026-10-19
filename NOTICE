@@ -18,8 +18,10 @@ Theme source revision: 8b06737dcfbf38c55236b7a6b77f15070c5bb3fd.
 Registry file digests are recorded in frontend/src/ui/scificn-source.json.
 Local adaptations include Fluxyr design tokens, locally hosted fonts,
 accessible dialog close labeling, unique form-control IDs, Scificn Label usage,
-bounded dropdown height, corrected Switch state-label selectors and the branded
-rounded symbol. Application adapters preserve empty/numeric select values and
+bounded dropdown height and the branded rounded symbol. The 2026-10-19 redesign
+replaces the retro skin with centralized Tailwind/Radix-compatible components,
+neutral light/dark tokens, system typography, native-style switches and a CSS
+loading indicator. Application adapters preserve empty/numeric select values and
 share execution status labels without changing backend states.
 
 Bundled IBM Plex Mono and Inter fonts are distributed under the SIL Open Font

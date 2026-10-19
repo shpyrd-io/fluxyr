@@ -12,16 +12,7 @@ const BreadcrumbList = React.forwardRef<
   HTMLOListElement,
   React.ComponentPropsWithoutRef<"ol">
 >(({ className, ...props }, ref) => (
-  <ol
-    ref={ref}
-    className={cn(
-      "flex flex-wrap items-center gap-1.5",
-      "font-mono text-xs text-[var(--text-muted)]",
-      "uppercase tracking-wider",
-      className,
-    )}
-    {...props}
-  />
+  <ol ref={ref} className={cn("ui-breadcrumb-list", className)} {...props} />
 ));
 BreadcrumbList.displayName = "BreadcrumbList";
 
@@ -62,7 +53,7 @@ const BreadcrumbPage = React.forwardRef<
     role="link"
     aria-disabled="true"
     aria-current="page"
-    className={cn("text-[var(--color-green)]", className)}
+    className={cn("ui-breadcrumb-page", className)}
     {...props}
   />
 ));
@@ -76,10 +67,10 @@ const BreadcrumbSeparator = ({
   <li
     role="presentation"
     aria-hidden="true"
-    className={cn("text-[var(--border-active)]", className)}
+    className={cn("ui-breadcrumb-separator", className)}
     {...props}
   >
-    {children ?? ">"}
+    {children ?? "/"}
   </li>
 );
 BreadcrumbSeparator.displayName = "BreadcrumbSeparator";

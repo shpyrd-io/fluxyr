@@ -1,8 +1,12 @@
 import { SelectField, SelectOption } from "./form-select";
 import { useEffect, useState } from "react";
 import { api, type RecordData } from "./api";
-import { Input } from "./components";
-import { ChevronRight, Search } from "lucide-react";
+import {
+  CatalogueSearch,
+  CatalogueIdentity,
+  CatalogueEmpty,
+} from "./catalogue";
+import { ChevronRight, Wrench } from "lucide-react";
 
 const toolGroups: Record<string, string[]> = {
   "Skills & code": [
@@ -46,14 +50,22 @@ const toolGroups: Record<string, string[]> = {
     "finish_execution",
     "ask_human",
   ],
-  Browser: ["browser", "browser_fill_private", "browser_request_input", "browser_register_passkey", "browser_use_passkey"],
+  Browser: [
+    "browser",
+    "browser_fill_private",
+    "browser_request_input",
+    "browser_register_passkey",
+    "browser_use_passkey",
+  ],
   Vault: ["vault_list", "check_vault_credential", "manage_vault_credential"],
   Agent: ["list_tools"],
 };
 const toolSummaries: Record<string, string> = {
   browser: "Inspect and control headless Chrome, including page captures.",
-  browser_register_passkey: "Register a passkey with human confirmation and save it directly in Vault.",
-  browser_use_passkey: "Sign in using a Vault passkey without exposing its private key.",
+  browser_register_passkey:
+    "Register a passkey with human confirmation and save it directly in Vault.",
+  browser_use_passkey:
+    "Sign in using a Vault passkey without exposing its private key.",
   browser_fill_private:
     "Fill a browser field directly from Vault, including fresh OTP codes.",
   browser_request_input:
@@ -131,16 +143,12 @@ export function ToolCatalogue({ onError }: { onError: (s: string) => void }) {
   );
   return (
     <div className="tool-catalogue">
-      <div className="tool-toolbar">
-        <div className="tool-search-field">
-          <Search size={14} />
-          <Input
-            aria-label="Search tools"
-            placeholder="Find a tool…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
+      <div className="catalogue-toolbar">
+        <CatalogueSearch
+          label="Search tools"
+          value={query}
+          onChange={setQuery}
+        />
         <SelectField
           aria-label="Filter tools by category"
           value={group}
@@ -151,15 +159,9 @@ export function ToolCatalogue({ onError }: { onError: (s: string) => void }) {
             <SelectOption key={g}>{g}</SelectOption>
           ))}
         </SelectField>
-        <span className="tool-count">
+        <span className="catalogue-count">
           {filtered.length} of {tools.length}
         </span>
-      </div>
-      <div className="tool-column-labels">
-        <span>TOOL</span>
-        <span>WHAT IT DOES</span>
-        <span>INPUTS</span>
-        <span />
       </div>
       {groups.map((g) => {
         const members = filtered.filter((t) => toolGroup(t) === g);
@@ -171,105 +173,109 @@ export function ToolCatalogue({ onError }: { onError: (s: string) => void }) {
               <span>{members.length}</span>
               {g === "Skill actions" && <small>Created by your agent</small>}
             </h2>
-            {members.map((t) => {
-              const properties = Object.entries(
-                t.parameters?.properties || {},
-              ) as [string, RecordData][];
-              return (
-                <details className="tool-row" key={t.name}>
-                  <summary>
-                    <code>{t.name}</code>
-                    <span className="tool-summary">
-                      {toolSummaries[t.name] || t.description.split(/\.\s/)[0]}
-                    </span>
-                    <span className="tool-input-count">
-                      {properties.length
-                        ? `${properties.length} ${properties.length === 1 ? "param" : "params"}`
-                        : "None"}
-                    </span>
-                    <ChevronRight className="tool-chevron" size={13} />
-                  </summary>
-                  <div className="tool-expanded">
-                    <p>{t.description}</p>
-                    {properties.length ? (
-                      <div className="tool-parameters">
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>Parameter</th>
-                              <th>Type</th>
-                              <th>Details</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {properties.map(([name, spec]) => (
-                              <tr key={name}>
-                                <td>
-                                  <code>{name}</code>
-                                  <span
-                                    className={
-                                      t.parameters.required?.includes(name)
-                                        ? "param-required"
-                                        : "param-optional"
-                                    }
-                                  >
-                                    {t.parameters.required?.includes(name)
-                                      ? "required"
-                                      : "optional"}
-                                  </span>
-                                </td>
-                                <td>
-                                  <code>
-                                    {Array.isArray(spec.type)
-                                      ? spec.type.join(" | ")
-                                      : spec.type ||
-                                        (spec.enum ? "enum" : "value")}
-                                  </code>
-                                </td>
-                                <td>
-                                  {spec.description || "—"}
-                                  {spec.enum && (
-                                    <small>
-                                      Options:{" "}
-                                      {spec.enum
-                                        .map((v: unknown) => JSON.stringify(v))
-                                        .join(", ")}
-                                    </small>
-                                  )}
-                                  {spec.default !== undefined && (
-                                    <small>
-                                      Default: {JSON.stringify(spec.default)}
-                                    </small>
-                                  )}
-                                </td>
+            <div className="catalogue-list">
+              {members.map((t) => {
+                const properties = Object.entries(
+                  t.parameters?.properties || {},
+                ) as [string, RecordData][];
+                return (
+                  <details className="tool-row" key={t.name}>
+                    <summary>
+                      <ChevronRight className="tool-chevron" size={14} />
+                      <CatalogueIdentity icon={Wrench} title={t.name} code>
+                        {toolSummaries[t.name] ||
+                          t.description.split(/\.\s/)[0]}
+                      </CatalogueIdentity>
+                      <span className="tool-input-count">
+                        {properties.length
+                          ? `${properties.length} ${properties.length === 1 ? "param" : "params"}`
+                          : "None"}
+                      </span>
+                    </summary>
+                    <div className="tool-expanded">
+                      <p>{t.description}</p>
+                      {properties.length ? (
+                        <div className="tool-parameters">
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>Parameter</th>
+                                <th>Type</th>
+                                <th>Details</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <p className="muted">This tool takes no parameters.</p>
-                    )}
-                    <details className="raw-schema">
-                      <summary>Full JSON schema</summary>
-                      <pre>{JSON.stringify(t.parameters, null, 2)}</pre>
-                    </details>
-                  </div>
-                </details>
-              );
-            })}
+                            </thead>
+                            <tbody>
+                              {properties.map(([name, spec]) => (
+                                <tr key={name}>
+                                  <td>
+                                    <code>{name}</code>
+                                    <span
+                                      className={
+                                        t.parameters.required?.includes(name)
+                                          ? "param-required"
+                                          : "param-optional"
+                                      }
+                                    >
+                                      {t.parameters.required?.includes(name)
+                                        ? "required"
+                                        : "optional"}
+                                    </span>
+                                  </td>
+                                  <td>
+                                    <code>
+                                      {Array.isArray(spec.type)
+                                        ? spec.type.join(" | ")
+                                        : spec.type ||
+                                          (spec.enum ? "enum" : "value")}
+                                    </code>
+                                  </td>
+                                  <td>
+                                    {spec.description || "—"}
+                                    {spec.enum && (
+                                      <small>
+                                        Options:{" "}
+                                        {spec.enum
+                                          .map((v: unknown) =>
+                                            JSON.stringify(v),
+                                          )
+                                          .join(", ")}
+                                      </small>
+                                    )}
+                                    {spec.default !== undefined && (
+                                      <small>
+                                        Default: {JSON.stringify(spec.default)}
+                                      </small>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <p className="muted">This tool takes no parameters.</p>
+                      )}
+                      <details className="raw-schema">
+                        <summary>Full JSON schema</summary>
+                        <pre>{JSON.stringify(t.parameters, null, 2)}</pre>
+                      </details>
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
           </section>
         );
       })}
       {!filtered.length && (
-        <div className="empty">
-          <h3>{loaded ? "No matching tools" : "Loading tools…"}</h3>
-          <p>
-            {loaded
-              ? "Try another search or category."
-              : "Reading the agent’s tool catalogue."}
-          </p>
-        </div>
+        <CatalogueEmpty
+          icon={Wrench}
+          title={loaded ? "No matching tools" : "Loading tools…"}
+        >
+          {loaded
+            ? "Try another search or category."
+            : "Reading the agent’s tool catalogue."}
+        </CatalogueEmpty>
       )}
     </div>
   );
