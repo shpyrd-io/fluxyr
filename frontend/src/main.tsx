@@ -979,12 +979,11 @@ function Chat({
               }}
             />
             <div className="composer-footer">
-              <span>
-                <Terminal size={13} />{" "}
-                {active
-                  ? "Your message will be queued"
-                  : "Local tools · Persistent memory"}
-              </span>
+              {active && (
+                <span>
+                  <Terminal size={13} /> Your message will be queued
+                </span>
+              )}
               <Button
                 className="send"
                 type="submit"

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.14 — 2026-10-19
+
+- Remove the static composer caption, retaining the queue notice only during active executions and keeping the send button aligned to the right.
+
 ## 0.9.13 — 2026-10-19
 
 - Refresh the interface with neutral light/dark surfaces, system typography and centralized component styling. Refine the Fluxyr logo alignment, theme selector, form controls, dialogs and status indicators.

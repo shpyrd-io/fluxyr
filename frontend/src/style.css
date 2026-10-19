@@ -538,6 +538,7 @@ main {
   color: var(--text-muted);
 }
 .composer .send {
+  margin-left: auto;
   width: 34px;
   height: 32px;
   padding: 0;
