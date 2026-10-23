@@ -485,7 +485,7 @@
 }
 .catalogue-identity > svg {
   flex-shrink: 0;
-  color: var(--brand-soft);
+  color: var(--text-muted);
 }
 .catalogue-identity > span {
   min-width: 0;
@@ -580,4 +580,20 @@
 .tool-row > summary:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: -3px;
+}
+
+/* Quiet toolbar actions keep labels accessible while using compact geometry. */
+.icon-button.fluxyr-button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.icon-button.fluxyr-button:hover {
+  color: var(--text-secondary);
+}
+.icon-button.is-active {
+  color: var(--brand);
+  background: var(--accent-surface);
 }

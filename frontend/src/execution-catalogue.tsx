@@ -34,7 +34,6 @@ export function ExecutionCatalogue({
     <div className="page">
       <div className="page-title">
         <div>
-          <p className="eyebrow">Observability</p>
           <Typography variant="H1">Executions</Typography>
           <p>Separate contexts. One place to see what happened.</p>
         </div>

@@ -2,7 +2,9 @@
 
 The interface uses Tailwind v4, Radix behavior primitives and a small, local
 component library in `frontend/src/ui`. Its neutral surfaces, system typography,
-compact navigation and soft controls are inspired by native Mac applications.
+compact navigation and soft controls follow the Calm design direction. Chat is
+the primary surface, with white/neutral content, a quiet gray sidebar, and an
+execution inspector opened only when requested.
 The Fluxyr brand accent comes from `fluxyr.com` (`#4a3ec7`); it is reserved for
 primary actions, links, selection and focus. The original component ancestry is
 recorded in NOTICE and `frontend/src/ui/scificn-source.json`.
@@ -16,7 +18,8 @@ recorded in NOTICE and `frontend/src/ui/scificn-source.json`.
 | `frontend/src/styles/components.css` | Appearance of reusable buttons, inputs, textareas, selects, labels, cards, panels, dialogs, badges, switches, checkboxes, breadcrumbs and runtime indicators. |
 | `frontend/src/catalogue.tsx` | Shared search, row identity and empty-state composition for resource lists. |
 | `frontend/src/ui/` | React component structure and accessible Radix behavior. Keep visual decisions in the shared CSS. |
-| `frontend/src/style.css` | Screen composition: sidebar, conversation, execution graph, catalogues and responsive layouts. |
+| `frontend/src/styles/workspace.css` | Calm app shell, session toolbar, conversation, composer, execution inspector and their responsive layouts. |
+| `frontend/src/style.css` | Resource catalogues, forms, file previews and supporting screen composition. |
 
 Import a shared primitive rather than recreating a control inside a page. Use
 semantic variables instead of literal colors or per-page theme overrides. The
@@ -40,10 +43,33 @@ actions without a duplicate heading. Reduced-motion preference disables animatio
 The opt-in `tests/test_theme_ui.py` browser test checks system changes, explicit
 overrides, persistence after reload, keyboard selection and the mobile control.
 
+## Calm workspace
+
+The internal Workbench route is labeled **Chat** in navigation; API/session names
+are unchanged. The header shows the configured agent name, current page, total
+cost, worker health and theme selector. Model information sits inside the composer.
+Session status, diagnostics, memory and clear-context controls remain available
+in a compact toolbar with labeled icon buttons and keyboard focus indicators.
+
+**Show execution sequence** opens the inspector; it starts closed and unmounts
+when dismissed so hidden graph nodes do not keep rendering. Its close button or
+Escape restores focus to the toolbar. On narrow screens the inspector uses the
+conversation area; closing it or selecting an event returns to the chat. Existing
+history windowing and scroll-following continue across layout changes. Closing
+the inspector does not interrupt execution, SSE updates or persistence.
+
+Tool summaries retain their names, result status and reported usage. Opening one
+still loads its payload lazily, including job/call/event/version identifiers.
+Approvals, Vault forms, file previews, builder progress, pause/resume/cancel and
+queued messages retain their existing behavior. Human requests use neutral
+surfaces; semantic status and error colors remain distinct. Only the composer
+container receives the focus treatment, avoiding a second ring around its textarea.
+
 ## Component consistency
 
-The workflow uses Card/Header/Title/Content for persisted nodes, preserving
-fork/join connectors and navigation back to the conversation. Forms use shared
+The execution inspector uses Card/Header/Title/Content for persisted nodes,
+preserving parallel groups, status, usage, version IDs and navigation back to
+the conversation. Forms use shared
 Radix Select, Checkbox, Switch and Dialog components, with labels and field IDs.
 Dialogs keep focus management and Escape dismissal; changing a form field never
 saves it automatically. Switches have a visible thumb and checkboxes a checkmark.

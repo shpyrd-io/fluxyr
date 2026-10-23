@@ -59,7 +59,6 @@ export function Resources({ page, onError, open }: Props) {
     <div className={"page" + (page === "Tools" ? " tools-page" : "")}>
       <div className="page-title">
         <div>
-          <p className="eyebrow">INSTANCE RESOURCES</p>
           <Typography variant="H1">{page}</Typography>
           <p>{descriptions[page]}</p>
         </div>

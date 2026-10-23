@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.15 — 2026-10-23
+
+- Introduce the Calm interface with neutral surfaces, a quieter sidebar, centered conversation, compact session controls and a simplified composer. Keep light, dark and system themes with the Fluxyr accent.
+- Make the execution sequence an on-demand inspector with keyboard dismissal, focus restoration and a responsive mobile view. Preserve live streaming, history windowing, tool details, approvals and execution controls.
+- Centralize workspace styling and layout tokens, refine resource catalogue rows, and document shared component and theme ownership.
+
 ## 0.9.14 — 2026-10-19
 
 - Remove the static composer caption, retaining the queue notice only during active executions and keeping the send button aligned to the right.

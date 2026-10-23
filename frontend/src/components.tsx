@@ -24,6 +24,21 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ),
 );
 Button.displayName = "Button";
+/** Quiet, accessible action used by compact workspace toolbars. */
+export const IconButton = React.forwardRef<
+  HTMLButtonElement,
+  ButtonProps & { label: string }
+>(({ label, className = "", title, ...props }, ref) => (
+  <Button
+    ref={ref}
+    variant="GHOST"
+    aria-label={label}
+    title={title || label}
+    className={`icon-button ${className}`}
+    {...props}
+  />
+));
+IconButton.displayName = "IconButton";
 export function Logo({ className = "" }: { className?: string }) {
   return (
     <span className={`fluxyr-symbol ${className}`} aria-hidden="true">

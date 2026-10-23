@@ -13,8 +13,9 @@ import {
   ArrowDown,
   Check,
   AlertCircle,
+  X,
 } from "lucide-react";
-import { Button, DebugId } from "./components";
+import { Button, IconButton, DebugId } from "./components";
 import {
   Card,
   CardHeader,
@@ -53,6 +54,7 @@ const icons: Record<string, typeof Wrench> = {
   error: AlertCircle,
 };
 export function ExecutionFlowPanel({
+  onClose,
   messages,
   events,
   jobs,
@@ -61,6 +63,7 @@ export function ExecutionFlowPanel({
   hasOlder,
   loadOlder,
 }: {
+  onClose: () => void;
   hasOlder: boolean;
   loadOlder: () => Promise<void>;
   timeline: TimelineItem[];
@@ -76,6 +79,10 @@ export function ExecutionFlowPanel({
   const [filter, setFilter] = useState("all"),
     [following, setFollowing] = useState(true);
   const scroll = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLElement>(null);
+  useEffect(() => {
+    panel.current?.focus();
+  }, []);
   const jobIds = [...new Set(all.map((n) => n.jobId).filter(Boolean))];
   const nodes = useMemo(
     () => (filter === "all" ? all : all.filter((n) => n.jobId === filter)),
@@ -126,15 +133,29 @@ export function ExecutionFlowPanel({
     );
   }
   return (
-    <aside className="execution-flow" aria-label="Execution sequence">
+    <aside
+      id="execution-sequence"
+      className="execution-flow"
+      aria-label="Execution sequence"
+      ref={panel}
+      tabIndex={-1}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && !event.defaultPrevented) {
+          event.stopPropagation();
+          onClose();
+        }
+      }}
+    >
       <header>
         <div>
           <GitBranch size={16} />
           <Typography variant="H4" as="h2">
             Execution sequence
           </Typography>
+          <IconButton label="Close execution sequence" onClick={onClose}>
+            <X size={16} />
+          </IconButton>
         </div>
-        <p>Recorded events · live updates</p>
         <SelectField
           aria-label="Filter timeline by execution"
           value={filter}

@@ -4,7 +4,6 @@ import { ThemeSelector } from "./theme-selector";
 import { ApprovalKeyDialog } from "./approval-key-dialog";
 import { StatusGrid } from "./ui/status-grid/status-grid";
 import { Typography } from "./ui/typography/typography";
-import { Separator } from "./ui/separator/separator";
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -42,6 +41,7 @@ import { BuildProgress } from "./build-progress";
 import { LocalFilePreview } from "./local-file-preview";
 import {
   Button,
+  IconButton,
   Textarea,
   Badge,
   Panel,
@@ -70,8 +70,10 @@ import {
   ArrowUpRight,
   BrainCircuit,
   Eraser,
-  UserRound,
   Cpu,
+  MessageCircle,
+  PanelRightOpen,
+  PanelRightClose,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -84,6 +86,7 @@ import "./styles/base.css";
 import "./styles/themes.css";
 import "./styles/components.css";
 import "./style.css";
+import "./styles/workspace.css";
 
 type Page =
   | "Workbench"
@@ -97,19 +100,19 @@ type Page =
 const pages: Page[] = [
   "Workbench",
   "Executions",
-  "Tools",
   "Skills",
   "Routines",
+  "Tools",
   "Vault",
   "Files",
   "Settings",
 ];
 const icons = [
-  Terminal,
+  MessageCircle,
   Activity,
-  Wrench,
   Boxes,
   Clock3,
+  Wrench,
   KeyRound,
   Folder,
   Settings2,
@@ -183,7 +186,7 @@ function App() {
       <div className={"app" + (collapsed ? " sidebar-collapsed" : "")}>
         <aside className="sidebar">
           <a
-            aria-label="Fluxyr Agent workbench"
+            aria-label="Fluxyr Agent chat"
             className="brand"
             href="#"
             onClick={(e) => {
@@ -202,50 +205,62 @@ function App() {
               {agentName}
             </span>
           </div>
-          <p className="nav-heading">Workspace</p>
           <nav aria-label="Main navigation">
             {pages.map((p, i) => (
-              <Button
-                key={p}
-                variant="GHOST"
-                aria-label={p}
-                aria-current={p === page ? "page" : undefined}
-                title={p}
-                className={p === page ? "selected" : ""}
-                onClick={() => {
-                  setPage(p);
-                  if (p === "Workbench") setSession(mainSession);
-                }}
-              >
-                {React.createElement(icons[i], { size: 17, strokeWidth: 1.6 })}
-                <span className="nav-label">{p}</span>
-                {p === "Executions" && active > 0 && <b>{active}</b>}
-              </Button>
+              <React.Fragment key={p}>
+                {i === 2 && <p className="nav-heading">Workspace</p>}
+                <Button
+                  key={p}
+                  variant="GHOST"
+                  aria-label={p === "Workbench" ? "Chat" : p}
+                  aria-current={p === page ? "page" : undefined}
+                  title={p === "Workbench" ? "Chat" : p}
+                  className={`${p === page ? "selected" : ""} ${p === "Settings" ? "nav-settings" : ""}`}
+                  onClick={() => {
+                    setPage(p);
+                    if (p === "Workbench") setSession(mainSession);
+                  }}
+                >
+                  {React.createElement(icons[i], {
+                    size: 17,
+                    strokeWidth: 1.6,
+                  })}
+                  <span className="nav-label">
+                    {p === "Workbench" ? "Chat" : p}
+                  </span>
+                  {p === "Executions" && active > 0 && <b>{active}</b>}
+                </Button>
+              </React.Fragment>
             ))}
           </nav>
           <div className="sidebar-bottom">
-            <StatusGrid
-              className="runtime-panel"
-              title="Local runtime"
-              columns={1}
-              systems={[
-                {
-                  name: "Worker",
-                  status: ready
-                    ? "ACTIVE"
-                    : workerState === "recovering"
-                      ? "SCANNING"
-                      : "OFFLINE",
-                  detail: ready ? undefined : workerState,
-                },
-                {
-                  name: "Jobs",
-                  detail: String(active).padStart(2, "0"),
-                  status: active ? "SCANNING" : "ACTIVE",
-                },
-              ]}
-            />
-            <Separator />
+            <details className="runtime-details">
+              <summary>
+                Local runtime{" "}
+                <span className={"dot " + (ready ? "online" : "")} />
+              </summary>
+              <StatusGrid
+                className="runtime-panel"
+                title="Local runtime"
+                columns={1}
+                systems={[
+                  {
+                    name: "Worker",
+                    status: ready
+                      ? "ACTIVE"
+                      : workerState === "recovering"
+                        ? "SCANNING"
+                        : "OFFLINE",
+                    detail: ready ? undefined : workerState,
+                  },
+                  {
+                    name: "Jobs",
+                    detail: String(active).padStart(2, "0"),
+                    status: active ? "SCANNING" : "ACTIVE",
+                  },
+                ]}
+              />
+            </details>
             <div className="instance-footer">
               Engine version{" "}
               <span>{engineVersion ? `v${engineVersion}` : "—"}</span>
@@ -269,7 +284,7 @@ function App() {
               </Button>
               <Breadcrumb>
                 <BreadcrumbList>
-                  <BreadcrumbItem>
+                  <BreadcrumbItem className="breadcrumb-agent">
                     <BreadcrumbLink
                       href="#"
                       onClick={(e) => {
@@ -277,30 +292,28 @@ function App() {
                         open(mainSession);
                       }}
                     >
-                      Fluxyr Agent
+                      {agentName}
                     </BreadcrumbLink>
                   </BreadcrumbItem>
-                  <BreadcrumbSeparator />
+                  <BreadcrumbSeparator className="breadcrumb-agent" />
                   <BreadcrumbItem>
                     <BreadcrumbPage>
                       {page === "Workbench" && session !== mainSession
                         ? "Execution"
-                        : page}
+                        : page === "Workbench"
+                          ? "Chat"
+                          : page}
                     </BreadcrumbPage>
                   </BreadcrumbItem>
                 </BreadcrumbList>
               </Breadcrumb>
             </div>
             <div className="topbar-status">
-              <span className="model-label">
-                <Cpu size={13} />
-                {model || "Model connection"}
-                <UsageBadge total />
-              </span>
+              <UsageBadge total />
               <span className="local-label">
                 <span className={"dot " + (ready ? "online" : "")} />
                 {ready
-                  ? "System online"
+                  ? "Online"
                   : workerState === "recovering"
                     ? "Reconnecting worker"
                     : workerState.toUpperCase()}
@@ -318,6 +331,7 @@ function App() {
             <Chat
               key={session}
               session={session}
+              model={model}
               jobs={jobs.filter((j) => j.session_id === session)}
               allJobs={jobs}
               refreshJobs={refresh}
@@ -325,7 +339,11 @@ function App() {
               onError={setError}
             />
           ) : page === "Executions" ? (
-            <ExecutionCatalogue jobs={jobs.filter(j => j.session_id !== mainSession)} refresh={refresh} open={open} />
+            <ExecutionCatalogue
+              jobs={jobs.filter((j) => j.session_id !== mainSession)}
+              refresh={refresh}
+              open={open}
+            />
           ) : (
             <Resources page={page} onError={setError} open={open} />
           )}
@@ -345,6 +363,7 @@ export function Empty({ title, text }: { title: string; text: string }) {
 }
 function Chat({
   session,
+  model,
   jobs,
   refreshJobs,
   allJobs,
@@ -352,6 +371,7 @@ function Chat({
   onError,
 }: {
   session: string;
+  model: string;
   jobs: RecordData[];
   refreshJobs: () => void;
   allJobs: RecordData[];
@@ -371,6 +391,12 @@ function Chat({
   const memoryTrigger = useRef<HTMLButtonElement>(null);
   const [controlBusy, setControlBusy] = useState(false);
   const [memoryOpen, setMemoryOpen] = useState(false);
+  const [executionOpen, setExecutionOpen] = useState(false);
+  const executionTrigger = useRef<HTMLButtonElement>(null);
+  const closeExecution = () => {
+    setExecutionOpen(false);
+    executionTrigger.current?.focus();
+  };
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const diagnosticText = useMemo(
     () => (diagnosticsOpen ? executionDiagnostics(events) : ""),
@@ -622,7 +648,7 @@ function Chat({
       ? statusLabel(active.status)
       : "Ready for input";
   return (
-    <div className="chat-workspace">
+    <div className="chat-workspace" data-activity-open={executionOpen}>
       <div className="chat">
         <div className="chat-title session-toolbar">
           <div className="session-identity">
@@ -649,13 +675,15 @@ function Chat({
             )}
           </div>
           <div className="session-actions">
-            <Button
+            <IconButton
+              label="Diagnostics"
               ref={diagnosticsTrigger}
               onClick={() => setDiagnosticsOpen(true)}
             >
-              <Terminal size={14} /> Diagnostics
-            </Button>
-            <Button
+              <Terminal size={16} />
+            </IconButton>
+            <IconButton
+              label="Memory"
               ref={memoryTrigger}
               onClick={async () => {
                 try {
@@ -666,9 +694,10 @@ function Chat({
                 }
               }}
             >
-              <BrainCircuit size={14} /> Memory
-            </Button>
-            <Button
+              <BrainCircuit size={16} />
+            </IconButton>
+            <IconButton
+              label="Clear context"
               onClick={clearContext}
               disabled={unfinished.length > 0}
               title={
@@ -677,8 +706,26 @@ function Chat({
                   : "Archive history and clear conversation and memories"
               }
             >
-              <Eraser size={14} /> Clear context
-            </Button>
+              <Eraser size={16} />
+            </IconButton>
+            <IconButton
+              ref={executionTrigger}
+              label={
+                executionOpen
+                  ? "Hide execution sequence"
+                  : "Show execution sequence"
+              }
+              aria-expanded={executionOpen}
+              aria-controls={executionOpen ? "execution-sequence" : undefined}
+              className={executionOpen ? "is-active" : ""}
+              onClick={() => setExecutionOpen((value) => !value)}
+            >
+              {executionOpen ? (
+                <PanelRightClose size={16} />
+              ) : (
+                <PanelRightOpen size={16} />
+              )}
+            </IconButton>
           </div>
         </div>
         <Dialog open={diagnosticsOpen} onOpenChange={setDiagnosticsOpen}>
@@ -853,15 +900,11 @@ function Chat({
                       />
                     ) : (
                       <div key={item.id} className={"message " + item.kind}>
-                        {item.kind === "user" ? (
-                          <div className="avatar">
-                            <UserRound size={16} />
-                          </div>
-                        ) : (
-                          <Logo className="avatar" />
-                        )}
                         <div className="message-body">
                           <div className="message-label">
+                            {item.kind !== "user" && (
+                              <Logo className="avatar" />
+                            )}
                             {item.kind === "user" ? "You" : "Fluxyr Agent"}
                             <time>
                               {new Date(
@@ -905,7 +948,7 @@ function Chat({
             {pendingInteractions(session, allJobs).map(
               ({ job: j, pending }) => (
                 <div key={j.id} className="human-panel">
-                  <p className="eyebrow">WAITING FOR YOU</p>
+                  <p className="eyebrow">Waiting for you</p>
                   {j.session_id !== session && (
                     <Button onClick={() => open(j.session_id)}>
                       Requested by a child execution · Open execution
@@ -979,8 +1022,14 @@ function Chat({
               }}
             />
             <div className="composer-footer">
+              <span
+                className="composer-model"
+                title={model || "Configure a model in Settings"}
+              >
+                <Cpu size={13} /> {model || "No model configured"}
+              </span>
               {active && (
-                <span>
+                <span className="composer-queued">
                   <Terminal size={13} /> Your message will be queued
                 </span>
               )}
@@ -1002,19 +1051,24 @@ function Chat({
           </small>
         </div>
       </div>
-      <ExecutionFlowPanel
-        hasOlder={hasOlder}
-        loadOlder={loadOlder}
-        jobs={allJobs}
-        messages={messages}
-        events={events}
-        timeline={timeline}
-        onJump={(id) => {
-          followLatest.current = false;
-          setShowLatest(true);
-          history.goToId(id);
-        }}
-      />
+      {executionOpen && (
+        <ExecutionFlowPanel
+          onClose={closeExecution}
+          hasOlder={hasOlder}
+          loadOlder={loadOlder}
+          jobs={allJobs}
+          messages={messages}
+          events={events}
+          timeline={timeline}
+          onJump={(id) => {
+            followLatest.current = false;
+            setShowLatest(true);
+            history.goToId(id);
+            if (window.matchMedia("(max-width: 760px)").matches)
+              closeExecution();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1176,13 +1230,6 @@ function EventCard({
           {e.payload.tool_call_id && (
             <UsageBadge jobId={e.job_id} toolCallId={e.payload.tool_call_id} />
           )}
-          <DebugId id={String(e.id)} label="event" />
-          {(e.payload.version_id || e.payload.result?.version_id) && (
-            <DebugId
-              id={e.payload.version_id || e.payload.result.version_id}
-              label="v"
-            />
-          )}
           <Status
             status={
               e.type === "tool_begin"
@@ -1210,6 +1257,12 @@ function EventCard({
         <span>
           Event: <code>{e.id}</code>
         </span>
+        {(e.payload.version_id || e.payload.result?.version_id) && (
+          <span>
+            Version:{" "}
+            <code>{e.payload.version_id || e.payload.result.version_id}</code>
+          </span>
+        )}
       </div>
       {e.payload.interrupted_status && (
         <p className="error">
