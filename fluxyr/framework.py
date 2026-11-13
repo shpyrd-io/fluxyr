@@ -1,5 +1,6 @@
 """Public Flask-compatible application with an explicit engine lifecycle."""
 
+import logging
 import signal
 import threading
 from pathlib import Path
@@ -86,8 +87,15 @@ class Fluxyr(Flask):
 
     def start(self):
         self.initialize()
-        if not self._adapter_factory:
-            self._fluxyr_settings.validate_credentials()
+        if not self._adapter_factory and not self._fluxyr_settings.testing:
+            from .providers import provider_status
+
+            status = provider_status(self.engine.db.model_config(), self.engine.vault)
+            if not status["configured"]:
+                logging.getLogger("fluxyr").warning(
+                    "Fluxyr starts without %s: open Settings in the interface to set it",
+                    " and ".join(status["missing"]),
+                )
         self.engine.start()
         return self
 

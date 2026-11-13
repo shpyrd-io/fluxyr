@@ -37,7 +37,9 @@ class Vault:
         configured = os.getenv("VAULT_ENCRYPTION_KEY")
         path = db.settings.state / "vault.key"
         if configured:
-            self.key = configured.encode()
+            from .encryption import kek_from_secret
+
+            self.key = kek_from_secret(configured)
         else:
             # Publish a fully written key atomically. Concurrent starts never
             # observe an empty/partial file and never overwrite a winning key.

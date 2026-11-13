@@ -11,6 +11,15 @@ PROVIDER_DEFAULTS = {
     "openrouter": ("openai", "https://openrouter.ai/api/v1"),
 }
 
+# The model settings a running instance may change from its Settings screen,
+# and the environment variable that, when set, fixes each one instead.
+MODEL_FIELDS = {
+    "provider": "FLUXYR_PROVIDER",
+    "model": "FLUXYR_MODEL",
+    "provider_endpoint": "FLUXYR_PROVIDER_ENDPOINT",
+    "provider_format": "FLUXYR_PROVIDER_FORMAT",
+}
+
 
 def env(name, default, cast=str, *, prefer=None):
     def read():
@@ -171,6 +180,11 @@ class Settings:
             "thinking_mode": self.thinking_mode,
             "thinking_budget": self.thinking_budget,
         }
+
+    def env_managed(self):
+        """The model settings fixed by the environment; the others come from
+        the Settings screen, stored in the database."""
+        return {key for key, variable in MODEL_FIELDS.items() if os.getenv(variable)}
 
     def validate_credentials(self):
         if not self.testing and not self.model.strip():

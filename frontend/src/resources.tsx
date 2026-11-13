@@ -3,6 +3,7 @@ import { Status } from "./status";
 import { Switch } from "./ui/switch/switch";
 import { Separator } from "./ui/separator/separator";
 import { SelectField, SelectOption } from "./form-select";
+import { ModelSettingsForm } from "./model-settings";
 import { Label } from "./ui/label/label";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { api, RecordData, date } from "./api";
@@ -52,7 +53,7 @@ const descriptions: Record<string, string> = {
   Vault: "Encrypted secrets, OAuth connections and client certificates.",
   Files: "Your agent’s local data directory. No remote storage.",
   Settings:
-    "Inspect the configuration loaded from your application environment.",
+    "The model the agent runs on, and the environment it was given.",
 };
 export function Resources({ page, onError, open }: Props) {
   return (
@@ -299,11 +300,7 @@ function Settings({ onError }: { onError: (s: string) => void }) {
   }, [onError]);
   if (!config) return <p>Loading settings…</p>;
   const fields: [string, string][] = [
-    ["provider", "FLUXYR_PROVIDER"],
-    ["model", "FLUXYR_MODEL"],
     ["agent_name", "FLUXYR_AGENT_NAME"],
-    ["provider_endpoint", "FLUXYR_PROVIDER_ENDPOINT"],
-    ["provider_format", "FLUXYR_PROVIDER_FORMAT"],
     ["max_tokens", "FLUXYR_MAX_TOKENS"],
     ["reasoning_effort", "FLUXYR_REASONING_EFFORT"],
     ["thinking_mode", "FLUXYR_THINKING_MODE"],
@@ -311,6 +308,21 @@ function Settings({ onError }: { onError: (s: string) => void }) {
   ];
   return (
     <div className="panel settings">
+      <h2>Model</h2>
+      <p className="muted">
+        {config.configured
+          ? "Where the agent's model comes from. A value set in the environment is shown but changed there."
+          : `The agent cannot run yet: it is missing ${(config.missing || []).join(" and ")}.`}
+      </p>
+      <ModelSettingsForm
+        key={JSON.stringify([config.provider, config.model, config.key_source])}
+        settings={config}
+        onSaved={(saved) => {
+          setConfig(saved);
+          window.dispatchEvent(new Event("fluxyr:settings"));
+        }}
+      />
+      <Separator />
       <h2>Environment configuration</h2>
       <p>
         Edit your application’s .env or deployment environment, then restart to
@@ -322,16 +334,6 @@ function Settings({ onError }: { onError: (s: string) => void }) {
           <Input readOnly value={String(config[key] ?? "")} />
         </Label>
       ))}
-      <Separator />
-      <p>
-        {config.provider.toUpperCase()}_API_KEY:{" "}
-        {config.configured_keys?.[config.provider]
-          ? "Configured"
-          : "Not configured"}
-      </p>
-      <p className="muted">
-        Credential values are never returned by this screen.
-      </p>
     </div>
   );
 }

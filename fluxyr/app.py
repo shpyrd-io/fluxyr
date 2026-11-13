@@ -2,8 +2,10 @@
 
 import hmac
 import json
+import os
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from flask import (
     Blueprint,
@@ -749,25 +751,117 @@ def create_app(settings=None, adapter_factory=None, start_worker=False, *, app=N
         response.headers["Referrer-Policy"] = "no-referrer"
         return response
 
-    @routes.get("/api/settings")
-    def model_settings():
-        config = engine.db.model_config()
-        import os
+    from .config import MODEL_FIELDS, PROVIDER_DEFAULTS
+    from .providers import key_name, key_source, list_models, provider_status
 
+    def settings_view():
+        """The model settings in force, where each comes from, and whether
+        executions can reach a model. Credential values are never returned."""
+        config = engine.db.model_config()
+        managed = settings.env_managed()
+        provider = config["provider"]
+        config["managed"] = {
+            key: "environment" if key in managed else "settings" for key in MODEL_FIELDS
+        }
         config["configured_keys"] = {
-            p: bool(os.getenv(p.upper() + "_API_KEY"))
+            p: bool(key_source(p, engine.vault))
             for p in ("anthropic", "openai", "openrouter", "custom")
         }
+        config["key_source"] = key_source(provider, engine.vault)
+        config["key_name"] = key_name(provider)
+        config.update(provider_status(config, engine.vault))
+        config["providers"] = [*PROVIDER_DEFAULTS, "custom"]
         config["agent_name"] = engine.settings.agent_name
         config["execution_mode"] = engine.settings.execution_mode
-        config["managed_by"] = "environment"
-        return jsonify(config)
+        return config
+
+    def settings_choice(payload):
+        """The provider, endpoint and format a settings request means,
+        validated the way the environment's are; the environment's own
+        values are not to be changed here."""
+        current = engine.db.model_config()
+        managed = settings.env_managed()
+        # A field left out keeps its value, unless the provider changes: the
+        # old provider's endpoint, format and model are not the new one's.
+        same_provider = str(payload.get("provider") or current["provider"]).strip() == current["provider"]
+        choice = {}
+        for key in MODEL_FIELDS:
+            value = payload.get(key)
+            if value is None and (same_provider or key in managed):
+                value = current.get(key, "")
+            choice[key] = str(value or "").strip()
+        for key in MODEL_FIELDS:
+            if key in managed and choice[key] != current.get(key, ""):
+                raise ValueError(
+                    f"{MODEL_FIELDS[key]} is set in the environment; change it there"
+                )
+        if choice["provider"] not in (*PROVIDER_DEFAULTS, "custom"):
+            raise ValueError("The provider must be anthropic, openai, openrouter or custom")
+        if choice["provider"] == "custom":
+            if choice["provider_format"] not in ("openai", "anthropic"):
+                raise ValueError("A custom provider needs its format: openai or anthropic")
+            if not choice["provider_endpoint"]:
+                raise ValueError("A custom provider needs its endpoint")
+            parts = urlsplit(choice["provider_endpoint"])
+            if parts.scheme not in ("http", "https") or not parts.netloc or parts.query or parts.fragment:
+                raise ValueError("The endpoint must be an HTTP(S) API base URL without query or fragment")
+        else:
+            wire, endpoint = PROVIDER_DEFAULTS[choice["provider"]]
+            if choice["provider_format"] and choice["provider_format"] != wire:
+                raise ValueError("The format conflicts with the provider; use custom")
+            choice["provider_format"] = wire
+            choice["provider_endpoint"] = choice["provider_endpoint"] or endpoint
+        return choice
+
+    def settings_key(payload, provider):
+        key = payload.get("api_key")
+        if key is not None and not isinstance(key, str):
+            raise ValueError("The key must be text")
+        key = (key or "").strip()
+        if key and os.getenv(key_name(provider)):
+            raise ValueError(f"{key_name(provider)} is set in the environment; change it there")
+        return key
+
+    @routes.get("/api/settings")
+    def model_settings():
+        return jsonify(settings_view())
+
+    @routes.post("/api/settings/check")
+    def check_settings():
+        """Tests a key against the provider and lists its models."""
+        payload = request.json or {}
+        choice = settings_choice(payload)
+        key = settings_key(payload, choice["provider"]) or provider_key_of(choice["provider"])
+        if not key and choice["provider"] != "custom":
+            raise ValueError("The key is needed")
+        models = list_models(
+            choice["provider"], choice["provider_endpoint"], choice["provider_format"], key
+        )
+        return jsonify(models=models, provider=choice["provider"])
+
+    def provider_key_of(provider):
+        from .providers import provider_key
+
+        return provider_key(provider, engine.vault)
 
     @routes.post("/api/settings")
     def save_settings():
-        return jsonify(
-            error="Settings are managed by environment variables. Update .env and restart the application."
-        ), 405
+        """Saves the model settings; the key goes to the Vault, under the
+        name the environment variable would have."""
+        payload = request.json or {}
+        choice = settings_choice(payload)
+        if not choice["model"]:
+            raise ValueError("The model is needed")
+        key = settings_key(payload, choice["provider"])
+        stored = {
+            key_: value
+            for key_, value in choice.items()
+            if key_ not in settings.env_managed()
+        }
+        engine.db.configuration_set("model", stored)
+        if key:
+            engine.vault.put(key_name(choice["provider"]), "text", {"value": key})
+        return jsonify(settings_view())
 
     @routes.get("/")
     @routes.get("/<path:path>")

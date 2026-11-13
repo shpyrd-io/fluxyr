@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 from .event_signal import EventSignal
 from .live_text import LiveText
-from .models import Base, Event, Job, Session, Version
+from .models import Base, Configuration, Event, Job, Session, Version
 
 MAIN_SESSION = "00000000-0000-0000-0000-000000000001"
 
@@ -149,7 +149,41 @@ class Database:
                 db.add(Session(id=MAIN_SESSION, title="Workbench", kind="main"))
 
     def model_config(self):
-        return self.settings.model_defaults()
+        """The model settings in force: the environment's where it sets one
+        (FLUXYR_PROVIDER, FLUXYR_MODEL, FLUXYR_PROVIDER_ENDPOINT,
+        FLUXYR_PROVIDER_FORMAT), the Settings screen's otherwise."""
+        from .config import MODEL_FIELDS, PROVIDER_DEFAULTS
+
+        config = self.settings.model_defaults()
+        stored = self.configuration_get("model") or {}
+        managed = self.settings.env_managed()
+        chosen = {
+            key: stored.get(key, "")
+            for key in MODEL_FIELDS
+            if key not in managed and stored.get(key)
+        }
+        if chosen:
+            config.update(chosen)
+            if "provider" in chosen:
+                wire, endpoint = PROVIDER_DEFAULTS.get(config["provider"], ("", ""))
+                if "provider_endpoint" not in managed and not stored.get("provider_endpoint"):
+                    config["provider_endpoint"] = endpoint
+                if "provider_format" not in managed and not stored.get("provider_format"):
+                    config["provider_format"] = wire
+        return config
+
+    def configuration_get(self, key):
+        with self.transaction() as db:
+            row = db.get(Configuration, key)
+            return dict(row.value) if row and isinstance(row.value, dict) else None
+
+    def configuration_set(self, key, value):
+        with self.transaction() as db:
+            row = db.get(Configuration, key)
+            if row:
+                row.value = value
+            else:
+                db.add(Configuration(key=key, value=value))
 
 
 def row_dict(row):

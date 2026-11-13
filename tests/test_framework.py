@@ -199,11 +199,10 @@ def test_environment_wins_over_old_database_settings(framework, monkeypatch):
         db.add(Configuration(key="model", value={"provider": "old", "model": "old"}))
     config = app.test_client().get("/api/settings").json
     assert config["model"] == "minimax/minimax-m3" and config["max_tokens"] == 2048
-    assert config["managed_by"] == "environment"
-    assert (
-        app.test_client().post("/api/settings", json={"model": "other"}).status_code
-        == 405
-    )
+    assert config["managed"]["model"] == "environment"
+    refused = app.test_client().post("/api/settings", json={"model": "other"})
+    assert refused.status_code == 400
+    assert "FLUXYR_MODEL is set in the environment" in refused.json["error"]
     assert app.db.model_config()["model"] == "minimax/minimax-m3"
 
 

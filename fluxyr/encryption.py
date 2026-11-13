@@ -10,6 +10,7 @@ compatibility — no data migration required.
 """
 
 import base64
+import hashlib
 import json
 import logging
 import os
@@ -27,7 +28,25 @@ def _get_kek() -> bytes:
     key = os.environ.get("VAULT_ENCRYPTION_KEY")
     if not key:
         raise RuntimeError("Vault key must be explicitly initialized")
-    return key.encode()
+    return kek_from_secret(key)
+
+
+def kek_from_secret(secret: str) -> bytes:
+    """The Fernet key a configured VAULT_ENCRYPTION_KEY means: the key itself
+    when it is one, else one derived from any secret of 32 characters or
+    more (a platform's generated hex, say), so the same secret always gives
+    the same key."""
+    value = secret.strip()
+    try:
+        Fernet(value.encode())
+        return value.encode()
+    except (ValueError, TypeError):
+        pass
+    if len(value) < 32:
+        raise ValueError(
+            "VAULT_ENCRYPTION_KEY must be a Fernet key or a secret of at least 32 characters"
+        )
+    return base64.urlsafe_b64encode(hashlib.sha256(value.encode()).digest())
 
 
 # ---------------------------------------------------------------------------

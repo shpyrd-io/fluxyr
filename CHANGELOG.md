@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.16 — 2026-11-13
+
+- Start without a model or a key: the first visit to the web UI asks for the provider, the key and the model, chosen from what the provider lists for the key, and keeps them, the key in the Vault under the provider's variable name. The Settings page edits them from then on; a value the environment sets is shown but changed there. `/api/settings` saves them and `/api/settings/check` tests a key.
+- Accept any secret of 32 characters or more as `VAULT_ENCRYPTION_KEY`, deriving the Fernet key from it, so a platform's generated secret works.
+
 ## 0.9.15 — 2026-10-23
 
 - Introduce the Calm interface with neutral surfaces, a quieter sidebar, centered conversation, compact session controls and a simplified composer. Keep light, dark and system themes with the Fluxyr accent.

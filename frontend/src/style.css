@@ -1859,3 +1859,32 @@ input[type="file"]::file-selector-button {
   border-top: 1px solid var(--border);
   margin: 20px 0;
 }
+
+/* The first run: the model settings alone on the screen. */
+.first-run {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--background, var(--surface));
+}
+.first-run-panel {
+  width: min(560px, 100%);
+}
+.first-run-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.first-run h1 {
+  font-size: 20px;
+  margin: 0 0 8px;
+}
+.model-settings-actions {
+  margin: 12px 0;
+}
+.model-settings .error {
+  color: var(--danger, #b91c1c);
+  font-size: 12px;
+}

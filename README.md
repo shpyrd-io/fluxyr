@@ -21,7 +21,9 @@ contributing to the frontend.
 
 ## Your first application
 
-Create a `.env` file:
+Optionally, create a `.env` file; without one, the first visit to the web UI
+asks for the provider, the key and the model, and keeps them (the key in the
+Vault):
 
 ```dotenv
 FLUXYR_MODEL=minimax/minimax-m3
@@ -82,8 +84,8 @@ are required.
 
 | Variable | Default |
 | --- | --- |
-| `FLUXYR_MODEL` | Required |
-| `OPENROUTER_API_KEY` | Required for the default provider |
+| `FLUXYR_MODEL` | Optional; asked on the first visit and set in Settings otherwise |
+| `OPENROUTER_API_KEY` | Optional; asked on the first visit and kept in the Vault otherwise. A value set in the environment is fixed: Settings shows it but cannot change it |
 | `FLUXYR_PROVIDER` | `openrouter`; also supports `openai`, `anthropic` and `custom` |
 | `PORT` | `5050` |
 | `FLUXYR_AGENT_NAME` | `Default Agent` |

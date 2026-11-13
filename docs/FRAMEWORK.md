@@ -57,8 +57,8 @@ credentials used by actions.
 | `FLUXYR_AGENT_NAME` | `Default Agent`; instance name displayed in the sidebar |
 | `FLUXYR_APPROVALS_API_KEY` | Empty disables approval authentication. When set, requires Bearer authorization for approval listing, attached previews, decisions and requested credential saves; other APIs remain open. See [approval API](APPROVALS_API.md). |
 | `FLUXYR_PROVIDER` | `openrouter`; also `openai`, `anthropic`, `custom` |
-| `FLUXYR_MODEL` | Required when starting the agent worker; no implicit model |
-| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY` | Key for the selected provider required when starting workers |
+| `FLUXYR_MODEL` | Optional: the model is set from the Settings screen (stored in the database) when the environment does not set it; no implicit model |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY` | Optional: the key is saved from the Settings screen into the Vault, under the same name, when the environment does not set it. The worker starts without either; executions say what is missing until Settings has it |
 | `FLUXYR_ROOT` | `.fluxyr` relative to the launch directory; one root for data, state, cache, runtime and workspace (e.g. `/var/lib/fluxyr` on a volume) |
 | `FLUXYR_SKILLS_DIR` | Empty disables file skills; otherwise path relative to the launch/project directory, or absolute; independent of `FLUXYR_ROOT` |
 | `FLUXYR_BROWSER_ENABLED` | `false`; enable optional [browser tools and private Vault/OTP input](BROWSER.md) |
@@ -79,7 +79,7 @@ credentials used by actions.
 | `FLUXYR_MAX_TOKENS` | `16000` |
 | `FLUXYR_REASONING_EFFORT` | Empty uses provider default |
 | `FLUXYR_THINKING_MODE`, `FLUXYR_THINKING_BUDGET` | `none`, `0`; Anthropic thinking or OpenRouter reasoning |
-| `VAULT_ENCRYPTION_KEY` | Optional; otherwise generated/persisted at `<root>/state/vault.key` |
+| `VAULT_ENCRYPTION_KEY` | Optional; otherwise generated/persisted at `<root>/state/vault.key`. A Fernet key, or any secret of 32 characters or more, from which the key is derived |
 | `FLUXYR_LOG_LEVEL` | `INFO` (CLI) |
 | `FLUXYR_APP` | Optional CLI import target; `--app` wins |
 

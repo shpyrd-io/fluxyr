@@ -33,6 +33,7 @@ import { ActivityFeed } from "./live-activity-data";
 import { UsageProvider, UsageBadge } from "./usage";
 import { createPoller } from "./polling";
 import { ExecutionFlowPanel } from "./execution-flow-panel";
+import { ModelSettingsForm } from "./model-settings";
 import { buildTimeline } from "./timeline";
 import { executionDiagnostics } from "./execution-diagnostics";
 import { pendingInteractions } from "./pending-interactions";
@@ -123,6 +124,7 @@ function App() {
     [error, setError] = useState("");
   const [collapsed, setCollapsed] = useState(false);
   const [model, setModel] = useState("");
+  const [settings, setSettings] = useState<RecordData | null>(null);
   const [engineVersion, setEngineVersion] = useState("");
   const [agentName, setAgentName] = useState("Default Agent");
   const [workerState, setWorkerState] = useState("starting");
@@ -150,12 +152,16 @@ function App() {
   );
   const refresh = jobPoller.refresh;
   useEffect(() => {
-    api("/settings")
-      .then((c) => {
-        setModel(c.model);
-        setAgentName(c.agent_name || "Default Agent");
-      })
-      .catch(() => {});
+    const readSettings = () =>
+      api("/settings")
+        .then((c) => {
+          setSettings(c);
+          setModel(c.model);
+          setAgentName(c.agent_name || "Default Agent");
+        })
+        .catch(() => {});
+    readSettings();
+    window.addEventListener("fluxyr:settings", readSettings);
     api("/health")
       .then((h) => {
         setReady(h.worker === true);
@@ -172,6 +178,7 @@ function App() {
       jobPoller.stop();
       document.removeEventListener("visibilitychange", changed);
       window.removeEventListener("fluxyr:jobs", changed);
+      window.removeEventListener("fluxyr:settings", readSettings);
     };
   }, [refresh, jobPoller]);
   const open = (id: string) => {
@@ -181,6 +188,17 @@ function App() {
   const active = jobs.filter((j) =>
     ["running", "waiting", "queued", "paused", "building"].includes(j.status),
   ).length;
+  if (settings && !settings.configured) {
+    return (
+      <FirstRun
+        settings={settings}
+        onSaved={(saved) => {
+          setSettings(saved);
+          setModel(saved.model);
+        }}
+      />
+    );
+  }
   return (
     <UsageProvider session={session}>
       <div className={"app" + (collapsed ? " sidebar-collapsed" : "")}>
@@ -350,6 +368,33 @@ function App() {
         </main>
       </div>
     </UsageProvider>
+  );
+}
+// The first run: nothing can run until the agent has a model and a key.
+// The same form as the Settings page, alone on the screen.
+function FirstRun({
+  settings,
+  onSaved,
+}: {
+  settings: RecordData;
+  onSaved: (settings: RecordData) => void;
+}) {
+  return (
+    <div className="first-run">
+      <div className="panel first-run-panel">
+        <div className="first-run-brand">
+          <Logo className="brand-symbol" />
+          <Wordmark />
+        </div>
+        <h1>Set up the agent</h1>
+        <p className="muted">
+          The agent needs a model to think with. Choose where it comes from
+          and give the key; it is kept in the Vault. Skills, routines and
+          credentials come after, from the workbench.
+        </p>
+        <ModelSettingsForm settings={settings} onSaved={onSaved} />
+      </div>
+    </div>
   );
 }
 export function Empty({ title, text }: { title: string; text: string }) {
