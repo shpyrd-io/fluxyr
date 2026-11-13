@@ -1881,8 +1881,23 @@ input[type="file"]::file-selector-button {
   font-size: 20px;
   margin: 0 0 8px;
 }
+/* The form's fields sit in a fieldset: the form's own rhythm (a column
+   with a gap) is given to the fieldset, and the dialog's height limit
+   does not apply outside a dialog. */
+.model-settings {
+  max-height: none;
+}
+.model-settings fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
 .model-settings-actions {
-  margin: 12px 0;
+  margin: 0;
 }
 .model-settings .error {
   color: var(--danger, #b91c1c);

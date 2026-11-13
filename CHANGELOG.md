@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.17 — 2026-11-13
+
+- Space the fields of the model settings form evenly, on the first run and on the Settings page, and let the first run's form take the height it needs.
+
 ## 0.9.16 — 2026-11-13
 
 - Start without a model or a key: the first visit to the web UI asks for the provider, the key and the model, chosen from what the provider lists for the key, and keeps them, the key in the Vault under the provider's variable name. The Settings page edits them from then on; a value the environment sets is shown but changed there. `/api/settings` saves them and `/api/settings/check` tests a key.
